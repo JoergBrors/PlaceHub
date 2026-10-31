@@ -47,6 +47,7 @@ jobs:
     steps:
       - name: Initialize ephemeral plan path
         shell: bash
+        working-directory: ${{ runner.temp }}
         run: |
           set -euo pipefail
           if [[ -z "${RUNNER_TEMP:-}" ]]; then
@@ -57,6 +58,7 @@ jobs:
 
       - name: Register secondary masks and validate target binding
         shell: bash
+        working-directory: ${{ runner.temp }}
         env:
           SAFE_SELECTED_ENVIRONMENT: ${{ inputs.target_environment }}
           SAFE_EXPECTED_ENVIRONMENT: ${{ vars.TF_ENVIRONMENT }}
@@ -166,6 +168,7 @@ jobs:
 
       - name: Remove saved plan
         if: ${{ always() }}
+        working-directory: ${{ runner.temp }}
         run: |
           set -euo pipefail
           rm -f -- "$TF_PLAN_PATH"

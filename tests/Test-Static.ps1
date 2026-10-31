@@ -33,6 +33,10 @@ $planStep = $workflow.IndexOf('- name: Create saved plan', [StringComparison]::O
 $applyStep = $workflow.IndexOf('- name: Apply the exact saved plan', [StringComparison]::Ordinal)
 $cleanupStep = $workflow.IndexOf('- name: Remove saved plan', [StringComparison]::Ordinal)
 Assert-True ($planPathInitialization -ge 0 -and $planPathInitialization -lt $planStep -and $planStep -lt $applyStep -and $applyStep -lt $cleanupStep) 'TF_PLAN_PATH must be exported before plan, apply, and cleanup steps.'
+foreach ($stepName in @('Initialize ephemeral plan path','Register secondary masks and validate target binding','Remove saved plan')) {
+    $escapedStepName = [regex]::Escape($stepName)
+    Assert-True ($workflow -match "(?s)- name: $escapedStepName\s+.*?working-directory:\s*\$\{\{ runner\.temp \}\}") "Step '$stepName' must start outside the checkout-dependent working directory."
+}
 Assert-True ($workflow -match 'SAFE_SELECTED_ENVIRONMENT.*\$\{\{ inputs.target_environment \}\}' -and $workflow -match 'SAFE_EXPECTED_ENVIRONMENT.*\$\{\{ vars.TF_ENVIRONMENT \}\}') 'Selected environment is not bound to approved configuration.'
 foreach ($category in @('TERRAFORM_INIT_FAILED','TERRAFORM_VALIDATE_FAILED','TERRAFORM_PLAN_FAILED','TERRAFORM_APPLY_FAILED')) { Assert-True ($workflow.Contains($category)) "Missing failure category $category." }
 

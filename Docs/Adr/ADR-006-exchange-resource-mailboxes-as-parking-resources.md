@@ -34,6 +34,11 @@ ADR-004, ADR-007, ADR-010, ADR-015.
 ## Validation / Proof of Concept
 AutoAccept, Kalenderdetails, Graph-Zugriff, Booking-Policy und Mailbox-Typ im Testtenant vergleichen.
 
+## Proposed authorization refinement (not approved)
+App-only Kalenderzugriff muss durch Exchange Application RBAC auf ausdrücklich markierte Entwicklungs-Parkplatzpostfächer begrenzt und mit erlaubten wie abgelehnten Postfächern getestet werden. Die Bereitstellung verwendet eine getrennte Identität und eine minimale Custom Role; das Scope-Problem bei neu anzulegenden Postfächern bleibt ein Approval Gate.
+
+Für die Verwaltung ist zertifikatsbasierte App-only-Authentifizierung mit `placehub-m365-provisioning-development` vorgeschlagen. Da ein Resource Scope ein noch nicht existierendes Postfach nicht zuverlässig begrenzen kann, bleibt entweder die menschliche Erstellung mit anschließender Markierung oder die explizite Akzeptanz einer verbleibenden organisationsweiten Create-Berechtigung erforderlich. Löschung ist nicht Teil des vorgeschlagenen Adapters.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

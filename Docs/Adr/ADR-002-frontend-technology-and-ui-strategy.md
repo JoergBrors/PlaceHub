@@ -34,6 +34,11 @@ ADR-001, ADR-003, ADR-009.
 ## Validation / Proof of Concept
 PoC für Kalender, große Tabellen, Verbindungsabbrüche, Barrierefreiheit und Lastverhalten.
 
+## Proposed identity refinement (not approved)
+Für die vorgeschlagene serverseitige Blazor-Web-App genügt eine einzelne vertrauliche Web-Registrierung. Eine separate Backend-Registrierung wird erst bei unabhängig gehosteter UI/API mit eigener Audience vorgeschlagen. Details und Freigabesperren stehen in `../entra-application-permission-architecture.md`.
+
+Der initiale Blazor-PoC läuft im lokalen Linux-Webcontainer und verwendet eine exakt registrierte feste HTTPS-Localhost-Callback-URI. Rendering, serverseitige Tokenhaltung und Autorisierung dürfen keine App-Service-Abhängigkeit erhalten.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

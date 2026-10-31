@@ -34,6 +34,9 @@ ADR-003, ADR-004, ADR-007, ADR-009.
 ## Validation / Proof of Concept
 Abnahmekriterien und kritische PoC-Szenarien in automatisierbare Testfälle überführen.
 
+## Proposed local container refinement (not approved)
+Zusätzlich werden deterministischer Image-Build, SBOM/Vulnerability Policy, Non-root/Read-only-Compose-Regeln, Health/Readiness, SQLite-Migration/Lock/Reset, exakte Localhost-OIDC-Callbacks, Secret-/Log-Canaries und Offline-Mocks geprüft. Live-Microsoft-365-Tests bleiben separat genehmigte Testtenant-Vorgänge.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

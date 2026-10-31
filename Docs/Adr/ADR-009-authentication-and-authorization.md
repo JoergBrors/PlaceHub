@@ -34,6 +34,13 @@ ADR-004, ADR-015.
 ## Validation / Proof of Concept
 Rechte-Matrix, Consent, Site-/Mailbox-Scope und Negativtests im Testtenant prüfen.
 
+## Proposed registration refinement (not approved)
+Der serverseitige Monolith verwendet vorgeschlagen eine single-tenant Confidential-Web-Registrierung mit Authorization Code, serverseitigen Tokens und ohne Implicit/Public-Client-Flow. `PlaceHub.OfficeManager`, `PlaceHub.LocationManager` und `PlaceHub.SystemAdministrator` sind User-App-Role-Kandidaten; jede fachliche Aktion benötigt zusätzlich die serverseitige Standortprüfung.
+
+Eine Office-Manager-Anforderung erzeugt nur nach Rollen- und Standortprüfung einen typisierten Provisionierungsauftrag. Weder Benutzeroberfläche noch Webprozess erhalten Exchange-Admin-Token oder Zertifikatsschlüssel; die getrennte Worker-Identität authentifiziert sich ausschließlich per genehmigtem Zertifikat.
+
+Der lokale PoC verwendet ausschließlich exakt registrierte HTTPS-Localhost-Redirect- und Sign-out-URIs mit festem Port. Es gibt keine Managed Identity im lokalen Webcontainer; Runtime-Identity und Secret Provider sind austauschbare Adapter. Mocks sind Standard, Live-Graph-Aufrufe benötigen weiterhin separat genehmigte delegated permissions.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

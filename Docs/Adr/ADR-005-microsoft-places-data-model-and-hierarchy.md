@@ -34,6 +34,9 @@ ADR-004, ADR-010, ADR-011.
 ## Validation / Proof of Concept
 CRUD- und Parent/Child-Funktionen in Testtenant prüfen; Desk Pool vs. Workspace und Einzelplatzbuchungen validieren.
 
+## Proposed permission refinement (not approved)
+`Place.Read.All` ist der initiale Lesekandidat. `Place.ReadWrite.All` bleibt unabhängig vom delegated/application-Typ bis zur expliziten Genehmigung interaktiver oder unattended Places-Verwaltung zurückgestellt.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

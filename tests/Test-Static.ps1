@@ -9,6 +9,9 @@ $bootstrapPath = Join-Path $root 'scripts/Bootstrap-Terraform.ps1'
 $bootstrap = Get-Content -Raw $bootstrapPath
 $adr016 = Get-Content -Raw (Join-Path $root 'Docs/Adr/ADR-016-github-actions-terraform-delivery.md')
 $adrIndex = Get-Content -Raw (Join-Path $root 'Docs/Adr/README.md')
+$identityArchitecture = Get-Content -Raw (Join-Path $root 'Docs/entra-application-permission-architecture.md')
+$exchangeArchitecture = Get-Content -Raw (Join-Path $root 'Docs/exchange-provisioning-architecture.md')
+$certificateRunbook = Get-Content -Raw (Join-Path $root 'Docs/exchange-certificate-lifecycle-runbook.md')
 
 $tokens = $null; $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($bootstrapPath, [ref]$tokens, [ref]$errors)
@@ -53,6 +56,42 @@ Assert-True (-not $bootstrap.Contains("'--body','{") -and -not $bootstrap.Contai
 Assert-True (($bootstrap | Select-String -Pattern 'Invoke-AzRestJsonMutation' -AllMatches).Matches.Count -ge 3) 'Container and federated credential JSON do not share the @file helper.'
 Assert-True ($adr016 -match '\*\*Status:\*\* Accepted' -and $adr016 -match '\*\*Approval date:\*\* 2026-10-31' -and $adr016 -match '\*\*Decision authority:\*\* Project Owner approval') 'ADR-016 acceptance metadata is incomplete.'
 Assert-True ($adrIndex -match '\[016\].*\| Accepted \|') 'ADR index does not mark ADR-016 Accepted.'
+foreach ($adrNumber in @('002','004','005','006','007','009','013','015')) {
+    $adr = Get-Content -Raw (Join-Path $root "Docs/Adr/ADR-$adrNumber-*.md")
+    Assert-True ($adr -match '\*\*Status:\*\* Proposed') "ADR-$adrNumber was inadvertently accepted."
+}
+Assert-True ($identityArchitecture -match 'Do not create `placehub-backend-development`' -and $identityArchitecture -match 'Terraform deployment application remains unchanged') 'Identity separation decision is incomplete.'
+foreach ($permissionId in @(
+    'e1fe6dd8-ba31-4d61-89e7-88639da4683d',
+    'cb8f45a0-5c2e-4ea1-b803-84b870a7d7ec',
+    '4c06a06a-098a-4063-868e-5dfee3827264',
+    '662d75ba-a364-42ad-adee-f5f880ea4878',
+    '1ec239c2-d7c9-4623-a91a-a9775856bb36',
+    '913b9306-0ce1-42b8-9137-6a7df690a760',
+    'f1f5e9aa-ad18-4b97-883e-6aa7e95b7a5f',
+    '8ba4a692-bc31-4128-9094-475872af8a53',
+    'ef54d2bf-783f-4e0f-bca1-3210c0444d99',
+    'dc50a0fb-09a3-484d-be87-e023b12c6440'
+)) {
+    Assert-True ($identityArchitecture.Contains($permissionId)) "Permission inventory is missing immutable ID $permissionId."
+}
+Assert-True ($identityArchitecture.Contains('Do not create a client secret.')) 'Identity architecture does not explicitly forbid client-secret fallback.'
+foreach ($requiredExchangeControl in @(
+    'CNG certificates are unsupported',
+    'AT_KEYEXCHANGE',
+    'Connect-ExchangeOnline -AppId',
+    'Disconnect-ExchangeOnline -Confirm:$false',
+    'dc50a0fb-09a3-484d-be87-e023b12c6440',
+    'Key Vault Secrets User',
+    'A resource scope cannot reliably restrict a mailbox that does not exist',
+    'F1 App Service is not an approved or sufficient privileged execution boundary',
+    'EWS and EWS Managed API are prohibited'
+)) {
+    Assert-True ($exchangeArchitecture.Contains($requiredExchangeControl)) "Exchange architecture is missing control: $requiredExchangeControl"
+}
+Assert-True ($exchangeArchitecture -match 'New-Mailbox -Equipment' -and $exchangeArchitecture -match 'Get-EXOMailbox' -and $exchangeArchitecture -match 'Set-CalendarProcessing') 'Exchange command inventory is incomplete.'
+Assert-Absent $exchangeArchitecture '(?i)(create|use|fallback to).{0,30}client secret' 'Exchange architecture permits a client-secret fallback.'
+Assert-True ($certificateRunbook -match '60, 30, 14 and 7 days' -and $certificateRunbook -match 'old authentication fails' -and $certificateRunbook -match 'emergency replacement') 'Certificate rotation and emergency lifecycle controls are incomplete.'
 
 # Exercise the command wrapper with synthetic secret-like values. Native stdout/stderr and arguments must not escape on failure.
 $functionNames = @('Stop-Safe','New-ArmResourceUrl','New-GitHubEnvironmentSubject','Test-FederatedCredentialExact','Resolve-AzureFailureCategory','Invoke-SafeCommand','Invoke-AzRestJsonMutation')

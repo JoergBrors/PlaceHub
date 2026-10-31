@@ -32,6 +32,14 @@ Keine Tokens, Kalenderdetails oder Besucher-PII in Logs; Monitoring-Zugriff und 
 
 Bootstrap and Terraform automation logs should use an allowlist of stable status and failure-category codes. Command arguments, raw subprocess output, exception details, Terraform plans/state/outputs, access tokens and infrastructure identifiers must not enter routine logs. Diagnostic detail belongs in the authoritative Azure, Entra and GitHub audit planes and may be accessed only through an authorized incident procedure. Redaction and platform masking are secondary controls, not the primary disclosure boundary. This amendment remains **Proposed** with the rest of ADR-012.
 
+### Proposed Exchange provisioning resilience amendment
+
+Privileged provisioning uses an idempotent state machine, bounded read-after-write verification and reconciliation for asynchronous or partially completed mailbox operations. Audit logs contain only correlation, operation type, approved logical resource reference, state, attempt and stable category—never PowerShell streams, command lines, tokens, PFX/private-key material, Key Vault secret references or mailbox/calendar content. Certificate expiry, Key Vault access anomalies, authentication failures and stuck partial states require alerts and runbooks. This amendment remains **Proposed**.
+
+### Proposed local PoC diagnostics amendment
+
+Der lokale PoC schreibt allowlist-basierte strukturierte Logs nach stdout/stderr mit kurzer lokaler Retention. Azure Monitor, Log Analytics und Application Insights werden nicht provisioniert. Optionale lokale Telemetrie bleibt loopback-gebunden und synthetisch. Secret-/PII-Canaries, SQLite-Fehler, Container-Neustart und Mock-API-Ausfälle gehören in die Tests. Dieser Zusatz bleibt **Proposed**.
+
 ## Dependencies
 ADR-004, ADR-007, ADR-013.
 

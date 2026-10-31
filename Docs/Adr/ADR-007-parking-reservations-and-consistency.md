@@ -34,6 +34,9 @@ ADR-006, ADR-009, ADR-011, ADR-012.
 ## Validation / Proof of Concept
 Zwei konkurrierende Buchungen, Timeout nach Submit, Storno und Fremdbuchung testen.
 
+## Proposed token-flow refinement (not approved)
+Bevorzugt erstellt der angemeldete Veranstalter mit delegiertem `Calendars.ReadWrite` eine reguläre Einladung an das Ressourcenpostfach. App-only Kalender-Schreibzugriff ist nur ein separat genehmigter Fallback mit nachgewiesenem Exchange-Mailbox-Scope.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

@@ -34,6 +34,11 @@ ADR-005, ADR-009, ADR-015.
 ## Validation / Proof of Concept
 Capability Matrix mit v1.0/Beta, Berechtigungen, Lizenz, Consent und Testtenant-Ergebnissen vervollständigen.
 
+## Proposed permission refinement (not approved)
+Delegierte Berechtigungen sind für interaktive Lese- und Buchungsvorgänge der Ausgangspunkt; Anwendungsberechtigungen bleiben der isolierten Provisionierungsidentität und separat begründeten unattended Use Cases vorbehalten. Die exakten Kandidaten-IDs, Consent-Anforderungen und Dokumentationsabweichungen stehen in `../entra-application-permission-architecture.md`.
+
+Exchange Equipment Mailbox provisioning and booking-policy configuration use the supported ExchangeOnlineManagement interface in a separate privileged worker, not Graph or EWS. Graph remains responsible for supported scheduling operations. The detailed boundary remains unapproved in `../exchange-provisioning-architecture.md`.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

@@ -34,6 +34,11 @@ ADR-001, ADR-009, ADR-010, ADR-012.
 ## Validation / Proof of Concept
 Betriebsanforderungen, Netzwerk, Compliance, Konnektivität und Kosten klären.
 
+## Proposed local-first refinement (not approved)
+Der initiale PoC läuft mit Docker Compose auf einem lokalen Entwicklerhost und erzeugt keine neuen Azure-Kosten oder Azure-Ressourcen. Ein Linux-kompatibles, nicht als root laufendes Web-Image, ein benanntes SQLite-Volume und lokale Mocks bilden die Ausgangstopologie. Azure Free Tiers sind kein Ersatz für lokales Hosting. App Service Custom Container oder ein anderer Host bleiben eine später finanzierte, separat zu genehmigende Option; Compose, Volume, Identität und lokale Secrets migrieren nicht automatisch.
+
+Der privilegierte Exchange-Worker läuft weder im Webcontainer noch zunächst als Sidecar. Ein gehärteter lokaler Windows-Prozess wird vor einem Linux-Worker-Container geprüft. Key Vault und dedizierter Azure-Worker bleiben kosten- und hostingpflichtige Approval Gates.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

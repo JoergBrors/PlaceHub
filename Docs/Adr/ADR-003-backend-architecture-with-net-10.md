@@ -34,6 +34,9 @@ ADR-001, ADR-004, ADR-014.
 ## Validation / Proof of Concept
 Struktur erst nach Repositoryinspektion verbindlich festlegen; Architekturtests für Abhängigkeiten.
 
+## Proposed portability refinement (not approved)
+Application und Domain verwenden Ports für Datenbank, Graph, Provisionierung, Konfiguration, Secrets und Runtime Identity. Docker-, Azure-, EF-Provider-, Graph-SDK- und PowerShell-Implementierungen bleiben in Infrastructure/Hosting-Adaptern. Das gleiche Web-Image soll später nach expliziter Kompatibilitätsprüfung auf einem genehmigten Containerhost laufen können.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

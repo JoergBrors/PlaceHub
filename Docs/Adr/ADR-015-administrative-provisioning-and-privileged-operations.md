@@ -32,7 +32,15 @@ Getrennte Identitäten, begrenzte Scopes, Vier-Augen-Freigabe bei Bedarf, revisi
 ADR-004, ADR-009, ADR-012.
 
 ## Validation / Proof of Concept
+Negativtests müssen insbesondere Web-zu-Provisioning-Eskalation, nicht freigegebene Cmdlets/Parameter und Zugriffe auf nicht markierte Mailboxen abweisen.
 Konkrete Create-/Update-Operationen, Role Assignments, Scopes und Rückabwicklung verifizieren.
+
+## Proposed identity refinement (not approved)
+`placehub-m365-provisioning-development` ist eine isolierte app-only Identität. `Exchange.ManageAsApp` kommt nur für den nachgewiesenen PowerShell-Verwaltungsweg zusammen mit minimaler Exchange Custom RBAC Role und Resource Scope infrage; Exchange Administrator und eine Wiederverwendung durch Web- oder Terraform-Workflows sind ausgeschlossen.
+
+Die vorgeschlagene Authentifizierung verwendet ein CSP-basiertes exportierbares RSA-Zertifikat und niemals einen Client Secret; CNG ist für diesen Exchange-CBA-Pfad ausgeschlossen. Ein typisierter Adapter ruft ausschließlich `Connect-ExchangeOnline`, die freigegebenen Mailbox-/CalendarProcessing-Cmdlets und `Disconnect-ExchangeOnline` in einem separaten Worker auf. Key Vault ist optional und kostenpflichtig; der private Schlüssel darf nur für die notwendige `X509Certificate2`-Nutzung kurzzeitig im Worker-Speicher vorliegen. Details und Restprivilegien stehen in `../exchange-provisioning-architecture.md`.
+
+Im initialen PoC ist der Adapter standardmäßig ein nicht privilegierter Mock. Für einen später separat genehmigten Testtenant-Nachweis wird zuerst ein gehärteter lokaler Windows-Worker mit OS-geschütztem Zertifikatsspeicher verwendet. Der Docker Socket und Host-Zertifikatsspeicher dürfen nie in den Webcontainer gemountet werden; ein Linux-Worker-Container benötigt einen eigenen Kompatibilitäts- und Isolationsnachweis.
 
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.

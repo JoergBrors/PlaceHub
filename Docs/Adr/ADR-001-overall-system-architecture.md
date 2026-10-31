@@ -34,6 +34,9 @@ ADR-003, ADR-009, ADR-010.
 ## Validation / Proof of Concept
 Modulzuschnitt sowie potenzielle Betriebs- und Performanceanforderungen validieren.
 
+## Proposed local-first refinement (not approved)
+Der modulare Monolith wird für den initialen PoC als ein Linux-kompatibles .NET-10-Container-Image ausgeführt. Docker Compose ist nur lokale Orchestrierung; fachliche Module bleiben unabhängig von Docker, Azure und konkreten Microsoft-SDK-Typen. Der getrennte privilegierte Exchange-Worker ist kein Teil des Webprozesses.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

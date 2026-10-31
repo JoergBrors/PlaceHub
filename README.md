@@ -338,11 +338,13 @@ Potential later improvements:
 
 PlaceHub follows a documentation-driven engineering process.
 
-The current architecture baseline contains 15 proposed ADRs covering system architecture, UI strategy, integration, Microsoft Places, Exchange parking resources, authorization, persistence, resilience, deployment, and testing.
+The current architecture baseline contains ADR-001 through ADR-016. ADR-016 is accepted; ADR-001 through ADR-015 remain proposed.
 
-**All current ADRs are proposals and require explicit approval before becoming binding implementation decisions.**
+**ADR-016 governs Terraform delivery only. All application, hosting, identity, Microsoft Graph and Exchange decisions still require explicit approval.**
 
 Before implementation, contributors must inspect existing repository documentation, review applicable ADRs, resolve conflicts, and validate relevant Microsoft 365 capabilities.
+
+Current discovery documents: [local-first Docker PoC](Docs/local-first-poc-architecture.md), [infrastructure architecture](Docs/infrastructure-architecture-discovery.md), [Entra application and permission architecture](Docs/entra-application-permission-architecture.md), and [Exchange provisioning architecture](Docs/exchange-provisioning-architecture.md).
 
 No undocumented architectural decisions should be introduced during implementation.
 

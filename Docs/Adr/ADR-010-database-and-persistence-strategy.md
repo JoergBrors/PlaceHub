@@ -34,6 +34,9 @@ ADR-005, ADR-006, ADR-008, ADR-011.
 ## Validation / Proof of Concept
 Hosting, Mandantenmodell, Datenmengen und SQL-Server/PostgreSQL-Betriebsrestriktionen klären.
 
+## Proposed local PoC refinement (not approved)
+Der initiale PoC verwendet SQLite ausschließlich für synthetische, wegwerfbare Daten eines einzelnen Web-Containers. Die Datei liegt in einem benannten Docker Volume; EF-Core-Migrationen werden durch einen kontrollierten einmaligen Schritt ausgeführt, nicht unkontrolliert bei jedem App-Start. Production-PII, Scale-out und Network Filesystems sind ausgeschlossen. SQL Server versus PostgreSQL sowie eine explizite Schema-/Datenmigration bleiben die Produktionsentscheidung; Volume oder SQLite-Datei migrieren nicht automatisch in Azure.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

@@ -1,5 +1,9 @@
 # Project: PlaceHub – Workplace & Resource Management
 
+## Binding initial PoC cost constraint
+
+The initial proof of concept is local-first and must incur zero incremental Azure cost. It must not provision Azure application resources or use Azure free tiers as a substitute for local Docker hosting. Existing ADR-016 Terraform delivery and remote-state resources remain unchanged; their already-incurred storage/transaction cost is recorded separately and is not claimed to disappear. Any later Azure-hosted extended PoC requires separate architecture, cost and deployment approval.
+
 ## 1. Role and Responsibilities
 
 You are acting as a **Principal Software Engineer, Solution Architect, and Technical Lead** with extensive experience designing and delivering modern enterprise applications using:

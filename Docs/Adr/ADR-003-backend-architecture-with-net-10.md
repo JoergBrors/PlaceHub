@@ -1,0 +1,50 @@
+# ADR-003: Backend Architecture with .NET 10
+
+- **Status:** Proposed (nicht genehmigt)
+- **Priority:** P0
+- **Date:** 2026-10-31
+- **Project:** PlaceHub – Workplace & Resource Management
+- **Decision owner:** Noch festzulegen
+- **Governance:** New ADR Required; vor Annahme bestehende Repository-ADRs prüfen
+
+## Context
+Microsoft-Graph-SDK-Typen und UI-Komponenten sollen nicht die Fachlogik bestimmen.
+
+## Problem
+Welche dauerhafte Architekturentscheidung wird für **Backend Architecture with .NET 10** benötigt, ohne die Microsoft-365-Verantwortlichkeiten, Sicherheit oder Einfachheit des Systems zu gefährden?
+
+## Proposed Decision
+Trennung nach Presentation, Application, Domain und Infrastructure; fachliche Use Cases erhalten abstrahierte Integration-Ports. Keine zwingende Assembly pro Schicht.
+
+## Alternatives Considered
+N-Tier (geringere fachliche Trennung); umfassendes DDD (unnötig für einfache CRUD-Anteile); pragmatische Clean Architecture (bevorzugt).
+
+## Rationale
+Verbessert Testbarkeit und Austauschbarkeit von Microsoft-Integrationen.
+
+## Consequences and Trade-offs
+Mögliches Abstraktions-Overhead muss aktiv begrenzt werden.
+
+## Security and Privacy Implications
+Policy- und Use-Case-basierte Autorisierung, Eingabevalidierung, Secrets nicht im Domain-Modell.
+
+## Dependencies
+ADR-001, ADR-004, ADR-014.
+
+## Validation / Proof of Concept
+Struktur erst nach Repositoryinspektion verbindlich festlegen; Architekturtests für Abhängigkeiten.
+
+## Documentation Impact
+Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
+
+## Open Questions / Approval Gates
+- Gibt es bereits akzeptierte ADRs oder technische Vorgaben im Repository, die dieser Entscheidung widersprechen?
+- Sind relevante Microsoft-365-Funktionen, API-Versionen, Berechtigungen und Lizenzbedingungen für den vorgesehenen Tenant geprüft?
+- Ist der vorgeschlagene Umfang für das MVP angemessen?
+- **Approval gate:** Entscheidung bleibt bis zur expliziten Architekturfreigabe `Proposed`.
+
+## References
+- Projektquelle: `PlaceHub_Project_Prompt.md` (vom Nutzer bereitgestellt; Anforderungen, ADR-Index und Zielarchitektur).
+- Microsoft Learn: https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-10/overview
+
+> Hinweis: Microsoft-Links sind Rechercheanker, keine Bestätigung aller API-Details. Unterstützungsstatus und Lizenzierung im Technical Discovery nachweisen.

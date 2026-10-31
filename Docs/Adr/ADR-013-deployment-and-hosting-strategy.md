@@ -1,0 +1,50 @@
+# ADR-013: Deployment and Hosting Strategy
+
+- **Status:** Proposed (nicht genehmigt)
+- **Priority:** P1
+- **Date:** 2026-10-31
+- **Project:** PlaceHub – Workplace & Resource Management
+- **Decision owner:** Noch festzulegen
+- **Governance:** New ADR Required; vor Annahme bestehende Repository-ADRs prüfen
+
+## Context
+Das Projekt nennt Azure und On-Premises als denkbare Hostingziele, ohne Entscheidung.
+
+## Problem
+Welche dauerhafte Architekturentscheidung wird für **Deployment and Hosting Strategy** benötigt, ohne die Microsoft-365-Verantwortlichkeiten, Sicherheit oder Einfachheit des Systems zu gefährden?
+
+## Proposed Decision
+Modularen Monolith als eine Webanwendung deployen; Azure App Service vs On-Premises anhand Organisation, Compliance, Kosten, Auth und Betrieb auswählen.
+
+## Alternatives Considered
+Azure App Service (Kandidat); On-Premises IIS/Container (Kandidat); Kubernetes (ohne Anforderung nicht empfohlen).
+
+## Rationale
+Minimale Betriebsbausteine und klare Verantwortlichkeit.
+
+## Consequences and Trade-offs
+Hostingentscheid beeinflusst Secret-Verwaltung, Skalierung und Datenbankwahl.
+
+## Security and Privacy Implications
+TLS, Managed Identity soweit verfügbar, Secret Store, Netzwerk- und Deployment-Rollen, Backups.
+
+## Dependencies
+ADR-001, ADR-009, ADR-010, ADR-012.
+
+## Validation / Proof of Concept
+Betriebsanforderungen, Netzwerk, Compliance, Konnektivität und Kosten klären.
+
+## Documentation Impact
+Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
+
+## Open Questions / Approval Gates
+- Gibt es bereits akzeptierte ADRs oder technische Vorgaben im Repository, die dieser Entscheidung widersprechen?
+- Sind relevante Microsoft-365-Funktionen, API-Versionen, Berechtigungen und Lizenzbedingungen für den vorgesehenen Tenant geprüft?
+- Ist der vorgeschlagene Umfang für das MVP angemessen?
+- **Approval gate:** Entscheidung bleibt bis zur expliziten Architekturfreigabe `Proposed`.
+
+## References
+- Projektquelle: `PlaceHub_Project_Prompt.md` (vom Nutzer bereitgestellt; Anforderungen, ADR-Index und Zielarchitektur).
+- Microsoft Learn: https://learn.microsoft.com/en-us/dotnet/core/whats-new/dotnet-10/overview
+
+> Hinweis: Microsoft-Links sind Rechercheanker, keine Bestätigung aller API-Details. Unterstützungsstatus und Lizenzierung im Technical Discovery nachweisen.

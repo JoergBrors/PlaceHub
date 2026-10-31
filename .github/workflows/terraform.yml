@@ -34,6 +34,7 @@ jobs:
         shell: bash
         working-directory: infrastructure/terraform
     env:
+      AZURE_CORE_OUTPUT: none
       ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
       ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
       ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
@@ -43,7 +44,33 @@ jobs:
       TF_INPUT: "false"
       TF_VAR_tenant_id: ${{ vars.AZURE_TENANT_ID }}
       TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      TF_PLAN_PATH: ${{ runner.temp }}/placehub.tfplan
     steps:
+      - name: Register secondary masks and validate target binding
+        shell: bash
+        env:
+          SAFE_SELECTED_ENVIRONMENT: ${{ inputs.target_environment }}
+          SAFE_EXPECTED_ENVIRONMENT: ${{ vars.TF_ENVIRONMENT }}
+          SAFE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          SAFE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          SAFE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          SAFE_STATE_RG: ${{ vars.TF_STATE_RG }}
+          SAFE_STATE_STORAGE: ${{ vars.TF_STATE_STORAGE }}
+          SAFE_STATE_CONTAINER: ${{ vars.TF_STATE_CONTAINER }}
+          SAFE_STATE_KEY: ${{ vars.TF_STATE_KEY }}
+        run: |
+          set -euo pipefail
+          for value in "$SAFE_SELECTED_ENVIRONMENT" "$SAFE_EXPECTED_ENVIRONMENT" "$SAFE_CLIENT_ID" "$SAFE_TENANT_ID" "$SAFE_SUBSCRIPTION_ID" "$SAFE_STATE_RG" "$SAFE_STATE_STORAGE" "$SAFE_STATE_CONTAINER" "$SAFE_STATE_KEY"; do
+            if [[ -n "$value" ]]; then
+              echo "::add-mask::$value"
+            fi
+          done
+          if [[ -z "$SAFE_EXPECTED_ENVIRONMENT" || "$SAFE_SELECTED_ENVIRONMENT" != "$SAFE_EXPECTED_ENVIRONMENT" ]]; then
+            echo "CONFIGURATION_INVALID: FAILED" >&2
+            exit 1
+          fi
+          echo "TARGET_BINDING_OK"
+
       - name: Check out the dispatched revision
         uses: actions/checkout@v7.0.1
         with:
@@ -63,26 +90,75 @@ jobs:
           terraform_wrapper: false
 
       - name: Check formatting
-        run: terraform fmt -check -recursive
+        run: |
+          set -euo pipefail
+          if ! captured_output="$(terraform fmt -check -recursive 2>&1)"; then
+            unset captured_output
+            echo "TERRAFORM_VALIDATE_FAILED: FAILED" >&2
+            exit 1
+          fi
+          unset captured_output
+          echo "TERRAFORM_FORMAT_OK"
 
       - name: Initialize remote state
-        run: >-
-          terraform init -input=false
-          -backend-config="resource_group_name=${{ vars.TF_STATE_RG }}"
-          -backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE }}"
-          -backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}"
-          -backend-config="key=${{ vars.TF_STATE_KEY }}"
+        run: |
+          set -euo pipefail
+          if ! captured_output="$(terraform init -input=false -no-color \
+            -backend-config="resource_group_name=${{ vars.TF_STATE_RG }}" \
+            -backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE }}" \
+            -backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
+            -backend-config="key=${{ vars.TF_STATE_KEY }}" 2>&1)"; then
+            unset captured_output
+            echo "TERRAFORM_INIT_FAILED: FAILED" >&2
+            exit 1
+          fi
+          unset captured_output
+          echo "TERRAFORM_INIT_OK"
 
       - name: Validate
-        run: terraform validate -no-color
+        run: |
+          set -euo pipefail
+          if ! captured_output="$(terraform validate -no-color 2>&1)"; then
+            unset captured_output
+            echo "TERRAFORM_VALIDATE_FAILED: FAILED" >&2
+            exit 1
+          fi
+          unset captured_output
+          echo "TERRAFORM_VALIDATE_OK"
 
       - name: Create saved plan
-        run: terraform plan -no-color -lock-timeout=5m -out=tfplan
-
-      - name: Show plan for review in this run
-        run: terraform show -no-color tfplan
+        run: |
+          set -euo pipefail
+          trap 'rm -f -- "$TF_PLAN_PATH"' EXIT
+          set +e
+          captured_output="$(terraform plan -no-color -compact-warnings -detailed-exitcode -lock-timeout=5m -out="$TF_PLAN_PATH" 2>&1)"
+          plan_exit=$?
+          set -e
+          unset captured_output
+          case "$plan_exit" in
+            0) echo "Changes detected: no" ;;
+            2) echo "Changes detected: yes" ;;
+            *) echo "TERRAFORM_PLAN_FAILED: FAILED" >&2; exit 1 ;;
+          esac
+          trap - EXIT
 
       - name: Apply the exact saved plan
         if: ${{ inputs.operation == 'apply' }}
-        run: terraform apply -no-color -auto-approve -lock-timeout=5m tfplan
+        run: |
+          set -euo pipefail
+          trap 'rm -f -- "$TF_PLAN_PATH"' EXIT
+          if ! captured_output="$(terraform apply -no-color -auto-approve -lock-timeout=5m "$TF_PLAN_PATH" 2>&1)"; then
+            unset captured_output
+            echo "TERRAFORM_APPLY_FAILED: FAILED" >&2
+            exit 1
+          fi
+          unset captured_output
+          echo "TERRAFORM_APPLY_OK"
+
+      - name: Remove saved plan
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          rm -f -- "$TF_PLAN_PATH"
+          echo "TERRAFORM_PLAN_REMOVED"
 

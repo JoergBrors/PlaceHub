@@ -13,7 +13,7 @@ PlaceHub needs reproducible Azure and Microsoft Entra provisioning without long-
 
 After a one-time, explicitly confirmed local PowerShell 7 bootstrap, run Terraform exclusively in a manually dispatched GitHub Actions workflow. Authenticate with an environment-bound GitHub OIDC subject and Microsoft Entra workload identity federation. Store state in a private Azure Blob container using Entra data-plane authorization. Keep the local privileged bootstrap identity, GitHub deployment identity, PlaceHub interactive identity and any Microsoft 365 provisioning identity separate.
 
-Use one workflow run to create and, for an `apply` dispatch, apply the exact local saved plan. Do not publish the binary plan because plans can contain cleartext sensitive values. A protected GitHub Environment gates the job where the repository plan and account support it.
+Use one workflow run to create and, for an `apply` dispatch, apply the exact local saved plan. Do not publish the binary plan because plans can contain cleartext sensitive values. Do not render the plan, state, raw outputs or raw Terraform diagnostics in routine logs. Emit only an allowlisted change/no-change result and stable failure categories. A protected GitHub Environment gates the job where the repository plan and account support it.
 
 ## Alternatives considered
 
@@ -25,6 +25,7 @@ Use one workflow run to create and, for an `apply` dispatch, apply the exact loc
 ## Consequences
 
 - Environment approval happens before the job creates its plan. Reviewers cannot inspect that run's plan before approval without an approved protected artifact or external run service.
+- The saved plan remains only in the ephemeral runner temporary directory and is removed on normal, failure and cancellation cleanup where GitHub permits cleanup to run. Runner disposal is the final isolation boundary; secure physical-media erasure is not exposed by GitHub-hosted runners.
 - `workflow_dispatch` is the only trigger; `destroy` is not exposed.
 - GitHub Environment reviewer availability depends on repository visibility and account plan.
 - AzureRM management permissions and Entra/Graph permissions remain distinct. Graph admin consent is a separate approval gate.
@@ -33,6 +34,8 @@ Use one workflow run to create and, for an `apply` dispatch, apply the exact loc
 ## Security implications
 
 The federated credential has exact issuer `https://token.actions.githubusercontent.com`, audience `api://AzureADTokenExchange`, and subject `repo:OWNER/REPOSITORY:environment:ENVIRONMENT`. Azure Contributor is limited to the approved workload resource group; Blob Data Contributor is limited to the state container. No storage keys, SAS tokens, client secrets, Graph admin consent, or Exchange permissions are created.
+
+The workflow must bind the selected GitHub Environment to its environment-scoped `TF_ENVIRONMENT` value before authentication. Identifier masking is registered before third-party actions run, but masking is only defense in depth: application-controlled steps prevent sensitive command output from being emitted in the first place. Third-party actions and the hosted runner remain residual logging trust dependencies.
 
 ## Approval gates
 

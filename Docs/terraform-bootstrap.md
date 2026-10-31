@@ -28,17 +28,27 @@ $target = '<tenant-guid>/<subscription-guid>/<owner/repo>/<environment>'
 ./scripts/Bootstrap-Terraform.ps1 -ConfirmTarget $target
 ```
 
-`-DryRun` performs authentication and read checks but suppresses mutations. `-WhatIf` also protects every mutating command. The script is idempotent: it reuses uniquely named resources, verifies existing federated trust, and uses idempotent ARM/role assignment operations. Multiple same-name Entra apps stop execution.
+`-DryRun` performs authentication and read checks but suppresses the entire dependent mutation phase. `-WhatIf` has the same mutation guarantee. Neither mode substitutes placeholder identities or attempts downstream RBAC after a suppressed identity creation. The script is idempotent: it reuses uniquely named resources, verifies existing federated trust, and uses idempotent ARM/role assignment operations. Multiple same-name Entra apps stop execution.
 
-The sanitized summary contains IDs and exact trust claims, never tokens, keys or state. Only the eight named non-secret configuration variables are uploaded; `.env` is never bulk-uploaded.
+Routine output is limited to allowlisted statuses such as `PREREQUISITES_OK`, `DISCOVERY_OK`, `PREVIEW_COMPLETE` and `BOOTSTRAP_COMPLETE`. Preview deliberately does not claim that no changes are needed: some write-only or permission-sensitive conditions are validated only during an authorized run. Failures contain only a stable category and `FAILED`. The script does not print identifiers, commands, argument arrays, native stdout/stderr, exception details, API bodies or a result object. Only the eight named non-secret configuration variables are uploaded; `.env` is never bulk-uploaded.
 
 ## GitHub and OIDC controls
 
-The workflow has only `workflow_dispatch`, defaults to `plan`, requires selection of the target GitHub Environment, and exposes no destroy operation. It has `contents: read` and `id-token: write`, uses an environment-bound OIDC credential, pins tool/action versions, serializes runs per selected environment, and never uploads a plan artifact. Apply consumes the exact `tfplan` file created in the same job and run. The explicit environment input avoids a bootstrap paradox: environment-scoped variables are not available until GitHub has selected that environment.
+The workflow has only `workflow_dispatch`, defaults to `plan`, requires selection of the target GitHub Environment, and exposes no destroy operation. It has `contents: read` and `id-token: write`, uses an environment-bound OIDC credential, pins tool/action versions, serializes runs per selected environment, and never uploads a plan artifact. Before authentication it requires the selected environment name to equal that environment's `TF_ENVIRONMENT` value. Apply consumes the exact saved plan created in the same job and run. The explicit environment input avoids a bootstrap paradox: environment-scoped variables are not available until GitHub has selected that environment.
+
+Terraform stdout/stderr is captured in memory and discarded; it is never echoed or saved as a diagnostic log. The workflow emits only formatting/init/validate/apply status and `Changes detected: yes|no`, derived from Terraform's documented `-detailed-exitcode`. It never runs `terraform show`, state commands, raw/JSON output commands, environment dumps or shell tracing. The plan is held under the runner temporary directory, removed after use and never uploaded. A GitHub-hosted runner is ephemeral, but neither the workflow nor GitHub exposes a verifiable physical-media secure erase primitive.
 
 Configure required reviewers and prevent self-review in **Settings → Environments → ENV** when the repository plan supports it. GitHub documents that required reviewers for private/internal repositories depend on the account plan; on several non-Enterprise plans those protection rules are public-repository-only. If reviewers are unavailable, `apply` lacks a four-eyes gate: do not authorize production apply until an equivalent control is approved.
 
 Approval occurs before the environment job starts, so the reviewer cannot see the newly generated plan. Splitting plan/apply would require transferring the binary plan, which can contain secrets. Do not add an artifact until encryption, access, retention, commit/run binding and integrity verification (for example an attestation or independently checked SHA-256) are approved.
+
+## Safe logging and incident investigation
+
+Permitted routine messages are the documented status strings, `Changes detected: yes|no`, and these categories: `PREREQUISITE_FAILED`, `AUTHENTICATION_FAILED`, `AUTHORIZATION_FAILED`, `CONFIGURATION_INVALID`, `RESOURCE_CONFLICT`, `OIDC_VALIDATION_FAILED`, and the four `TERRAFORM_*_FAILED` operation categories. Do not enable PowerShell transcription, `Set-PSDebug`, Bash `set -x`, `TF_LOG`, Azure CLI log files, environment dumps or ad-hoc echo statements in routine runs.
+
+GitHub `add-mask` is registered before third-party actions as secondary protection for known identifiers; it is not a secrecy guarantee. `actions/checkout`, `azure/login`, `setup-terraform`, the hosted runner and GitHub's own runner diagnostics remain trusted dependencies that can produce platform-controlled metadata. Review action updates before changing pinned versions.
+
+For an authorized incident, correlate the workflow run ID and timestamp with GitHub audit/deployment history, Azure Activity Log, Entra sign-in/audit logs and approved Storage diagnostic logs. Restrict access through the incident role and record the investigation. Reproduce failures only in the approved test tenant with synthetic data. Do not turn on verbose/transcription/trace output, persist captured subprocess output, download state, or publish plan files. If vendor support requires sensitive evidence, use the organization's approved encrypted support channel and retention process outside routine Actions artifacts.
 
 ## State and recovery
 
@@ -47,7 +57,7 @@ Approval occurs before the environment job starts, so the reviewer cannot see th
 - Azure Blob leases provide automatic Terraform state locking and consistency checking. Never use `-lock=false`. Use `force-unlock` only after proving the owning run is gone and recording the lock ID.
 - Blob and container soft delete plus blob versioning are enabled for 30 days. Azure Storage charges for retained versions/capacity and transactions; GitHub-hosted runner/account charges depend on the repository plan. Resource groups, Entra apps and federated credentials have no direct charge.
 - Enable Storage diagnostic settings to an approved Log Analytics workspace/archive once the monitoring destination and retention are decided. Azure Activity Log covers management operations; storage resource logs are needed for data-plane audit.
-- State and plans can contain secrets even when outputs are marked sensitive. Limit state readers, never print `terraform state pull`, and do not upload plans/log full environment variables.
+- State and plans can contain secrets even when outputs are marked sensitive. Limit state readers, never print `terraform state pull`, and do not upload plans or log environment variables. HashiCorp explicitly documents that saved plans include full configuration, planned values and input variables and can hold sensitive data in cleartext.
 
 For recovery, inspect resources before rerunning; the script safely reuses matching resources. After a partial failure, fix the reported authorization/API error and rerun with the same confirmed values. If infrastructure already exists outside Terraform, add matching resource declarations and use `import` blocks or `terraform import`—never recreate it blindly. If remote state persistence fails and Terraform leaves local state, preserve it securely, stop all writers, compare lineage/serial, and follow HashiCorp state recovery guidance. Restore a prior blob version only during an incident with all runs stopped and an audited change record.
 
@@ -77,7 +87,7 @@ terraform -chdir=infrastructure/terraform init -backend=false
 terraform -chdir=infrastructure/terraform validate
 ```
 
-Cloud tests require explicit authorization and an approved test tenant: repeat bootstrap twice; try mismatched tenant/subscription/confirmation; revoke GitHub/API permission to confirm safe failure; dispatch plan; verify the OIDC subject; hold a state lease to test lock failure; confirm apply waits for environment approval; inspect logs/artifacts for credentials. Never use production for these tests.
+Cloud tests require explicit authorization and an approved test tenant: repeat bootstrap twice; try mismatched tenant/subscription/confirmation; revoke GitHub/API permission to confirm safe categorized failure; dispatch plan; verify the exact OIDC issuer, repository/environment subject, single audience and expected application; hold a state lease to test lock failure; confirm environment approval occurs before plan generation; inspect logs/artifacts using synthetic canaries. Never use production for these tests.
 
 ## Official references
 
@@ -89,4 +99,6 @@ Cloud tests require explicit authorization and an approved test tenant: repeat b
 - [GitHub environments](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)
 - [GitHub variables](https://docs.github.com/en/actions/concepts/workflows-and-actions/variables)
 - [GitHub OIDC reference](https://docs.github.com/en/actions/reference/security/oidc)
+- [GitHub workflow commands and masking](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands)
+- [Terraform plan command and saved-plan confidentiality](https://developer.hashicorp.com/terraform/cli/commands/plan)
 

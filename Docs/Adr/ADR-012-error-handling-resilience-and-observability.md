@@ -28,6 +28,10 @@ Zusätzliche Logging-/Monitoring-Konfiguration, Redaktionsregeln und Retention.
 ## Security and Privacy Implications
 Keine Tokens, Kalenderdetails oder Besucher-PII in Logs; Monitoring-Zugriff und Audit-Schutz.
 
+### Proposed secure automation logging amendment
+
+Bootstrap and Terraform automation logs should use an allowlist of stable status and failure-category codes. Command arguments, raw subprocess output, exception details, Terraform plans/state/outputs, access tokens and infrastructure identifiers must not enter routine logs. Diagnostic detail belongs in the authoritative Azure, Entra and GitHub audit planes and may be accessed only through an authorized incident procedure. Redaction and platform masking are secondary controls, not the primary disclosure boundary. This amendment remains **Proposed** with the rest of ADR-012.
+
 ## Dependencies
 ADR-004, ADR-007, ADR-013.
 

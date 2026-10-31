@@ -44,6 +44,10 @@ For the local PoC, Graph and Exchange adapters are offline mocks by default. EWS
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 
+## Proposed Phase-2 read-only amendment (not approved)
+
+Use Microsoft Graph v1.0 typed Places list/descendant endpoints for Building, Floor, Section, Workspace and Desk reads, and delegated `getSchedule` only for advisory free/busy. Adapters expose domain records rather than Graph SDK types, accept only allowlisted endpoints and never silently replace a live failure with mock data. OfflineMock remains the checked-in default. Microsoft365ReadOnly requires valid tenant identity, application role, location assignment, delegated scope and target-resource authorization. No write endpoint is part of read-only mode.
+
 ## Open Questions / Approval Gates
 - Gibt es bereits akzeptierte ADRs oder technische Vorgaben im Repository, die dieser Entscheidung widersprechen?
 - Sind relevante Microsoft-365-Funktionen, API-Versionen, Berechtigungen und Lizenzbedingungen für den vorgesehenen Tenant geprüft?

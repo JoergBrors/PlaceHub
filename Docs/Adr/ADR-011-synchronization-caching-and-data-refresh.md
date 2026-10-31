@@ -40,6 +40,10 @@ Offline Graph-/Exchange-Mocks sind Test-Fixtures und müssen in Datenmodell, UI 
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 
+## Proposed Phase-2 read strategy (not approved)
+
+Begin with on-demand Places and availability reads that display source and read timestamp. Do not add a live cache until TTL, invalidation, per-user/location isolation and stale-state UX have test evidence. Paging is bounded, cancellation is propagated and transient 429/503 retries honor bounded `Retry-After`. A cached Places record or free/busy result never becomes an authoritative booking or hierarchy copy.
+
 ## Open Questions / Approval Gates
 - Gibt es bereits akzeptierte ADRs oder technische Vorgaben im Repository, die dieser Entscheidung widersprechen?
 - Sind relevante Microsoft-365-Funktionen, API-Versionen, Berechtigungen und Lizenzbedingungen für den vorgesehenen Tenant geprüft?

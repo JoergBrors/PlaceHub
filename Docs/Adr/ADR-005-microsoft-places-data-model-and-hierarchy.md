@@ -46,6 +46,8 @@ Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Des
 
 Desk Pool is represented as a Microsoft Places Workspace beneath the resolved Building → Floor → Section parent, never as an unrelated local grouping. Microsoft currently documents both the explicit Room-mailbox-to-Workspace sequence plus calendar/Places configuration and the newer `New-Place -Type Workspace` automatic mailbox provisioning path. Selection between these paths is an unresolved ADR decision, not an implementation detail. Exact module versions, cmdlets, attributes, licensing, RBAC, propagation and tenant behavior remain test-tenant evidence gates. The offline POC may retain only synthetic IDs, workflow/audit metadata and supplementary display metadata; Microsoft 365 remains source of truth.
 
+For Phase 2, native Graph `placeId`/`parentId` values are the proposed read hierarchy. Workspace capacity, mailbox details or operational metadata that are absent in a supported response remain visibly unknown; PlaceHub must not invent them. Tenant-wide `Place.Read.All` results are filtered again by server-side assigned building/location IDs before reaching the UI.
+
 ## Open Questions / Approval Gates
 - Gibt es bereits akzeptierte ADRs oder technische Vorgaben im Repository, die dieser Entscheidung widersprechen?
 - Sind relevante Microsoft-365-Funktionen, API-Versionen, Berechtigungen und Lizenzbedingungen für den vorgesehenen Tenant geprüft?

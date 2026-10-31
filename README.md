@@ -1,4 +1,4 @@
-# PlaceHub# 🏢 PlaceHub
+# 🏢 PlaceHub
 ### One Workplace. One Dashboard. Zero Microsoft 365 Admin Complexity.
 
 **The lightweight, Microsoft 365-native command center for modern Office & Workplace Management.**
@@ -11,6 +11,10 @@
 ![Microsoft 365](https://img.shields.io/badge/Microsoft-365-0078D4)
 ![Architecture](https://img.shields.io/badge/Architecture-Modular_Monolith-blue)
 ![Status](https://img.shields.io/badge/Status-Architecture_%26_Discovery-orange)
+
+The repository includes a local, offline .NET 10 Blazor proof of concept for UI-driven desk-pool and parking-resource administration. It performs no Microsoft 365 or Azure mutation. Run it with `dotnet run --project src/PlaceHub.Web` and validate it with `dotnet test PlaceHub.slnx`. See [UI-driven resource administration](Docs/ui-driven-resource-administration.md).
+
+The responsive enterprise shell, design tokens, booking calendar and accessibility conventions are documented in [UI design system](Docs/ui-design-system.md).
 
 ---
 

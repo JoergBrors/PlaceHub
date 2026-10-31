@@ -1,0 +1,15 @@
+@inject DemoActorContext ActorContext
+<nav aria-label="Hauptnavigation">
+@foreach (var group in VisibleItems.GroupBy(x => x.Group)) {
+  <span class="nav-group">@group.Key</span>
+  @foreach (var item in group) { <NavLink href="@item.Url" Match="@(item.Url == "" ? NavLinkMatch.All : NavLinkMatch.Prefix)"><span aria-hidden="true">@item.Icon</span>@item.Label</NavLink> }
+}
+</nav>
+@code {
+ private sealed record NavItem(string Group,string Url,string Icon,string Label,bool AdminOnly=false);
+ private IEnumerable<NavItem> VisibleItems => Items.Where(x=>!x.AdminOnly || ActorContext.Current.Role==PlaceHubRole.SystemAdministrator);
+ private static readonly NavItem[] Items = [
+    new("Arbeitsplatz","","⌂","Dashboard"),new("Arbeitsplatz","buchungskalender","▦","Buchungskalender"),new("Arbeitsplatz","gebaeude","▥","Gebäude"),new("Arbeitsplatz","etagen","≡","Etagen & Bereiche"),new("Arbeitsplatz","schreibtische","▱","Schreibtische"),
+    new("Arbeitsplatz","schreibtischgruppen","♧","Schreibtischgruppen"),new("Arbeitsplatz","parkplaetze","P","Parkplätze"),new("Betrieb","reservierungen","◷","Reservierungen"),new("Betrieb","besucher","♙","Besucher"),
+    new("Administration","freigaben","✓","Freigaben",true),new("Administration","provisionierung","↻","Provisionierungsaufträge",true),new("Administration","administration","⚙","Administration",true),new("Administration","diagnose","◇","Integration & Diagnose",true)];
+}

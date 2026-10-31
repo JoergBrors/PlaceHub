@@ -47,6 +47,12 @@ Im Windows-Zertifikatsspeicher darf der CSP-basierte private Schlüssel zur Lauf
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 
+## Proposed UI-driven workflow amendment (not approved)
+
+Office/Location Managers submit location-bound typed requests; a PlaceHub System Administrator may approve and trigger eligible operations without holding an Exchange administrator role. Approval does not grant Microsoft 365 access. A separately authenticated worker revalidates request version, approval, location, idempotency and fixed operation/parameter policy before execution. The state model is Draft, Submitted, AwaitingApproval, Approved, Rejected, Running, PendingPropagation, Succeeded, Failed, PartiallyConfigured and RequiresReconciliation. Approved payloads are immutable, approval replay is rejected and arbitrary PowerShell input is impossible. Narrow automatic approval remains disabled until a separate operation policy is accepted.
+
+The offline POC implements this shape with an in-process mock adapter only; it has no certificate, token, Graph/Exchange client or tenant access. A live worker, effective permissions, consent, Exchange custom RBAC, mailbox-creation residual scope, certificate lifecycle and durable execution store remain explicit approval gates.
+
 ## Open Questions / Approval Gates
 - Gibt es bereits akzeptierte ADRs oder technische Vorgaben im Repository, die dieser Entscheidung widersprechen?
 - Sind relevante Microsoft-365-Funktionen, API-Versionen, Berechtigungen und Lizenzbedingungen für den vorgesehenen Tenant geprüft?

@@ -1,0 +1,17 @@
+@inherits LayoutComponentBase
+<div class="shell">
+  <input class="nav-toggle" id="nav-toggle" type="checkbox" aria-label="Navigation ein- oder ausblenden" />
+  <aside>
+    <div class="brand"><span aria-hidden="true">◆</span><strong>PlaceHub</strong><small>Workplace Management</small></div>
+    <NavMenu />
+    <div class="sidebar-foot"><span class="offline-dot" aria-hidden="true"></span><div><b>Offline-Demo</b><small>Keine Tenant-Verbindung</small></div></div>
+  </aside>
+  <main>
+    <header>
+      <label class="hamburger" for="nav-toggle" aria-label="Navigation öffnen">☰</label>
+      <div class="global-search" role="search"><span aria-hidden="true">⌕</span><input aria-label="Globale Suche" placeholder="Suche im System …" disabled title="Globale Suche folgt nach Freigabe des Suchkonzepts" /><kbd>Ctrl K</kbd></div>
+      <div class="top-state"><span class="environment-pill"><span aria-hidden="true">▣</span> Offline-Demo</span><RoleSwitcher /></div>
+    </header>
+    <section class="content">@Body</section>
+  </main>
+</div>

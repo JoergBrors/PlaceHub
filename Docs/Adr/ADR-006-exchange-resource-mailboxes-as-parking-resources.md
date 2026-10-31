@@ -44,6 +44,10 @@ Der lokale PoC verwendet ausschließlich Mocks. Equipment Mailbox bleibt der bev
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 
+## Proposed UI-lifecycle amendment (not approved)
+
+Parking and desk-pool provisioning are distinct typed workflows. Parking retains Equipment Mailbox as candidate and Room Mailbox as a test alternative; desk pools use the separately proposed Room-to-Workspace process. UI actions create approved requests only. Disable is reversible, deletion is excluded, and Exchange calendar state remains authoritative. Automatic mailbox creation stays blocked until security explicitly accepts the residual organization-wide create capability, approved SMTP/naming/type templates, immediate scope marking, quarantine on partial failure and reconciliation.
+
 ## Open Questions / Approval Gates
 - Gibt es bereits akzeptierte ADRs oder technische Vorgaben im Repository, die dieser Entscheidung widersprechen?
 - Sind relevante Microsoft-365-Funktionen, API-Versionen, Berechtigungen und Lizenzbedingungen für den vorgesehenen Tenant geprüft?

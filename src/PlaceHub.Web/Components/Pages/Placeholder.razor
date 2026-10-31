@@ -1,0 +1,7 @@
+@page "/gebaeude"
+@page "/etagen"
+@page "/schreibtische"
+@page "/reservierungen"
+@page "/besucher"
+<div class="page-heading"><div class="page-title"><span class="page-icon">@Icon</span><div><h1>@Title</h1><p>Einheitliche PlaceHub-Arbeitsfläche für lokale Demonstrationsdaten.</p></div></div></div><div class="notice" role="status"><strong>Funktionaler Umfang begrenzt</strong>Dieser Bereich zeigt im POC ausschließlich synthetische Daten. Die tiefe Fachfunktion bleibt ein nachgelagerter Baustein.</div><div class="empty"><h2>Keine Einträge im aktuellen Filter</h2><p>Sobald der entsprechende Offline-Adapter Daten bereitstellt, werden sie hier im gemeinsamen Designsystem angezeigt.</p></div>
+@code { [Parameter] public string? unused {get;set;} private string Segment=>NavigationManager.Uri.Split('/').Last();private string Title=>Segment switch{"gebaeude"=>"Gebäude","etagen"=>"Etagen & Bereiche","schreibtische"=>"Schreibtische","reservierungen"=>"Reservierungen","besucher"=>"Besucher",_=>"PlaceHub"};private string Icon=>Segment switch{"gebaeude"=>"▥","etagen"=>"≡","schreibtische"=>"▱","reservierungen"=>"◷","besucher"=>"♙",_=>"◆"}; [Inject] private NavigationManager NavigationManager{get;set;}=default!; }

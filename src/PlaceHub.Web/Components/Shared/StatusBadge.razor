@@ -1,0 +1,2 @@
+<span class="badge @Css">@Text</span>
+@code { [Parameter,EditorRequired] public string Text{get;set;}=""; private string Css => IsAny("Bereit","Erfolg","Verfügbar","Akzeptiert")?"ok":IsAny("Fehler","Abgleich","Abgelehnt","Unbekannt","Offline","Gesperrt")?"danger":"pending";private bool IsAny(params string[] values)=>values.Any(x=>Text.Contains(x,StringComparison.OrdinalIgnoreCase)); }

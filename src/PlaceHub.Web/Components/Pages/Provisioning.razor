@@ -1,0 +1,24 @@
+@page "/provisionierung"
+@page "/administration"
+@page "/freigaben"
+@inject AdministrationService Service
+@inject DemoActorContext ActorContext
+@rendermode InteractiveServer
+<PageTitle>Provisionierungsaufträge · PlaceHub</PageTitle>
+<div class="page-heading"><div class="page-title"><span class="page-icon">↻</span><div><h1>Provisionierungsaufträge</h1><p>Freigabe und Ausführung typisierter, versionsgebundener Offline-Vorgänge.</p></div></div><StatusBadge Text="Offline-Mock aktiv" /></div>
+@if(ActorContext.Current.Role != PlaceHubRole.SystemAdministrator){<div class="notice" role="status"><strong>Nur Statusansicht</strong>Für Freigabe und Ausführung ist die App-Rolle PlaceHub System Administrator erforderlich. Eine Exchange-Administratorrolle wird nicht benötigt.</div>}else{<div class="notice" role="status"><strong>PlaceHub-Administration aktiv</strong>Freigaben gelten nur für die angezeigte unveränderte Version. Microsoft-365-Rechte werden dadurch nicht erteilt.</div>}
+<div class="table-wrap"><table><thead><tr><th>Ressource</th><th>Operation</th><th>Standort</th><th>Status</th><th>Sichere Diagnose</th><th>Aktion</th></tr></thead><tbody>
+@foreach(var request in Requests){<tr><td><b>@request.Specification.Name</b><small>@request.Specification.ResourceKind · @request.CorrelationId[..8]</small></td><td>@request.Specification.Operation</td><td>@request.Specification.LocationId</td><td><StatusBadge Text="@Label(request.State)" /></td><td><code>@request.OutcomeCode</code></td><td>
+@if(request.State==RequestState.AwaitingApproval){<button disabled="@(ActorContext.Current.Role!=PlaceHubRole.SystemAdministrator)" @onclick="()=>Approve(request)">Freigeben</button><button class="danger-button" disabled="@(ActorContext.Current.Role!=PlaceHubRole.SystemAdministrator)" @onclick="()=>Reject(request)">Ablehnen</button>}
+@if(request.State==RequestState.Approved){<button disabled="@(ActorContext.Current.Role!=PlaceHubRole.SystemAdministrator)" @onclick="()=>Execute(request)">Mock ausführen</button>}
+</td></tr>}
+</tbody></table></div>
+@if(!Requests.Any()){<div class="empty"><h2>Noch keine Aufträge</h2><p>Erstellen Sie eine Schreibtischgruppe oder Parkplatzressource.</p></div>}
+@if(message is not null){<p class="notice">@message</p>}
+@code {
+ private string? message; private IReadOnlyCollection<AdministrationRequest> Requests=>Service.List(ActorContext.Current);
+ private void Approve(AdministrationRequest r){try{r.Approve(ActorContext.Current,r.Version);message="Auftrag wurde versionsgebunden freigegeben.";}catch(WorkflowException ex){message=ex.Code;}}
+ private void Reject(AdministrationRequest r){try{r.Reject(ActorContext.Current,r.Version);message="Auftrag wurde abgelehnt. Es erfolgte keine Ausführung.";}catch(WorkflowException ex){message=ex.Code;}}
+ private async Task Execute(AdministrationRequest r){try{await Service.ExecuteAsync(r.Id,ActorContext.Current,r.Version);message="Mock-Ausführung abgeschlossen und verifiziert.";}catch(WorkflowException ex){message=ex.Code;}}
+ private static string Label(RequestState s)=>s switch{RequestState.AwaitingApproval=>"Freigabe ausstehend",RequestState.Running=>"In Bearbeitung",RequestState.Succeeded=>"Erfolgreich provisioniert",RequestState.PartiallyConfigured=>"Teilweise konfiguriert",RequestState.RequiresReconciliation=>"Abgleich erforderlich",RequestState.Failed=>"Fehlgeschlagen",_=>s.ToString()};
+}

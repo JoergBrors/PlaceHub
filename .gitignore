@@ -38,6 +38,8 @@ ScaffoldingReadMe.txt
 
 # dotenv environment variables file
 .env
+.env.*
+!.env.example
 
 # Others
 ~$*
@@ -55,3 +57,14 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Terraform and optional Python tooling
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+.venv/
+__pycache__/
+.pytest_cache/

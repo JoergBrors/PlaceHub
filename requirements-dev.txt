@@ -1,0 +1,3 @@
+# The bootstrap and Terraform workflow do not require Python packages.
+# Keep this file as the auditable dependency definition for the optional venv.
+

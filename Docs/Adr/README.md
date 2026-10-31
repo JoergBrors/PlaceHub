@@ -19,6 +19,7 @@ All ADRs below are **Proposed**, not Accepted. This is a starting baseline based
 | [013](ADR-013-deployment-and-hosting-strategy.md) | Deployment and Hosting Strategy | P1 | Proposed |
 | [014](ADR-014-testing-strategy.md) | Testing Strategy | P1 | Proposed |
 | [015](ADR-015-administrative-provisioning-and-privileged-operations.md) | Administrative Provisioning and Privileged Operations | P0 | Proposed |
+| [016](ADR-016-github-actions-terraform-delivery.md) | GitHub Actions Terraform Delivery | P0 | Proposed |
 
 ## Review order
 1. Application architecture: 001, 002, 003.

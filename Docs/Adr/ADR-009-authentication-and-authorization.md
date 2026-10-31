@@ -1,11 +1,12 @@
 # ADR-009: Authentication and Authorization
 
-- **Status:** Proposed (nicht genehmigt)
+- **Status:** Accepted
 - **Priority:** P0
 - **Date:** 2026-10-31
 - **Project:** PlaceHub – Workplace & Resource Management
-- **Decision owner:** Noch festzulegen
-- **Governance:** New ADR Required; vor Annahme bestehende Repository-ADRs prüfen
+- **Approval date:** 2026-10-31
+- **Decision authority:** Project Owner approval
+- **Governance:** Accepted identity boundaries; permissions and consent remain separate gates
 
 ## Context
 Office Management soll keine Tenant-Administratorrolle für alltägliche Fachaufgaben benötigen.
@@ -13,7 +14,7 @@ Office Management soll keine Tenant-Administratorrolle für alltägliche Fachauf
 ## Problem
 Welche dauerhafte Architekturentscheidung wird für **Authentication and Authorization** benötigt, ohne die Microsoft-365-Verantwortlichkeiten, Sicherheit oder Einfachheit des Systems zu gefährden?
 
-## Proposed Decision
+## Decision
 OIDC/Entra-Anmeldung; Rollen- und Standortberechtigungen serverseitig; technische Graph-/Exchange-Berechtigungen separat je Workflow mit delegated/application-Modell.
 
 ## Alternatives Considered
@@ -34,7 +35,7 @@ ADR-004, ADR-015.
 ## Validation / Proof of Concept
 Rechte-Matrix, Consent, Site-/Mailbox-Scope und Negativtests im Testtenant prüfen.
 
-## Proposed registration refinement (not approved)
+## Accepted registration boundary
 Der serverseitige Monolith verwendet vorgeschlagen eine single-tenant Confidential-Web-Registrierung mit Authorization Code, serverseitigen Tokens und ohne Implicit/Public-Client-Flow. `PlaceHub.OfficeManager`, `PlaceHub.LocationManager` und `PlaceHub.SystemAdministrator` sind User-App-Role-Kandidaten; jede fachliche Aktion benötigt zusätzlich die serverseitige Standortprüfung.
 
 Eine Office-Manager-Anforderung erzeugt nur nach Rollen- und Standortprüfung einen typisierten Provisionierungsauftrag. Weder Benutzeroberfläche noch Webprozess erhalten Exchange-Admin-Token oder Zertifikatsschlüssel; die getrennte Worker-Identität authentifiziert sich ausschließlich per genehmigtem Zertifikat.
@@ -48,7 +49,7 @@ Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Des
 - Gibt es bereits akzeptierte ADRs oder technische Vorgaben im Repository, die dieser Entscheidung widersprechen?
 - Sind relevante Microsoft-365-Funktionen, API-Versionen, Berechtigungen und Lizenzbedingungen für den vorgesehenen Tenant geprüft?
 - Ist der vorgeschlagene Umfang für das MVP angemessen?
-- **Approval gate:** Entscheidung bleibt bis zur expliziten Architekturfreigabe `Proposed`.
+- Exact callbacks, role assignments, scopes, consent and Exchange authorization require separate approval.
 
 ## References
 - Projektquelle: `PlaceHub_Project_Prompt.md` (vom Nutzer bereitgestellt; Anforderungen, ADR-Index und Zielarchitektur).

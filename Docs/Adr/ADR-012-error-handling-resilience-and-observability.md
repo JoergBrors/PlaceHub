@@ -1,11 +1,12 @@
 # ADR-012: Error Handling, Resilience and Observability
 
-- **Status:** Proposed (nicht genehmigt)
+- **Status:** Accepted
 - **Priority:** P1
 - **Date:** 2026-10-31
 - **Project:** PlaceHub – Workplace & Resource Management
-- **Decision owner:** Noch festzulegen
-- **Governance:** New ADR Required; vor Annahme bestehende Repository-ADRs prüfen
+- **Approval date:** 2026-10-31
+- **Decision authority:** Project Owner approval
+- **Governance:** Accepted for local PoC logging/resilience; production telemetry requires review
 
 ## Context
 Microsoft APIs können throttlen, ausfallen oder unklare Buchungszustände hinterlassen.
@@ -13,7 +14,7 @@ Microsoft APIs können throttlen, ausfallen oder unklare Buchungszustände hinte
 ## Problem
 Welche dauerhafte Architekturentscheidung wird für **Error Handling, Resilience and Observability** benötigt, ohne die Microsoft-365-Verantwortlichkeiten, Sicherheit oder Einfachheit des Systems zu gefährden?
 
-## Proposed Decision
+## Decision
 Strukturierte Logs, Distributed Tracing/Correlation IDs, kontrollierte Retry- und Backoff-Regeln, nachvollziehbare Fachfehler und Statusreconciliation.
 
 ## Alternatives Considered
@@ -28,17 +29,17 @@ Zusätzliche Logging-/Monitoring-Konfiguration, Redaktionsregeln und Retention.
 ## Security and Privacy Implications
 Keine Tokens, Kalenderdetails oder Besucher-PII in Logs; Monitoring-Zugriff und Audit-Schutz.
 
-### Proposed secure automation logging amendment
+### Accepted secure automation logging scope
 
-Bootstrap and Terraform automation logs should use an allowlist of stable status and failure-category codes. Command arguments, raw subprocess output, exception details, Terraform plans/state/outputs, access tokens and infrastructure identifiers must not enter routine logs. Diagnostic detail belongs in the authoritative Azure, Entra and GitHub audit planes and may be accessed only through an authorized incident procedure. Redaction and platform masking are secondary controls, not the primary disclosure boundary. This amendment remains **Proposed** with the rest of ADR-012.
+Bootstrap and Terraform automation logs use an allowlist of stable status and failure-category codes. Command arguments, raw subprocess output, exception details, Terraform plans/state/outputs, access tokens and infrastructure identifiers must not enter routine logs. Diagnostic detail belongs in authoritative audit planes and may be accessed only through an authorized incident procedure. Redaction and masking are secondary controls.
 
-### Proposed Exchange provisioning resilience amendment
+### Accepted provisioning resilience boundary
 
-Privileged provisioning uses an idempotent state machine, bounded read-after-write verification and reconciliation for asynchronous or partially completed mailbox operations. Audit logs contain only correlation, operation type, approved logical resource reference, state, attempt and stable category—never PowerShell streams, command lines, tokens, PFX/private-key material, Key Vault secret references or mailbox/calendar content. Certificate expiry, Key Vault access anomalies, authentication failures and stuck partial states require alerts and runbooks. This amendment remains **Proposed**.
+Privileged provisioning uses an idempotent state machine, bounded read-after-write verification and reconciliation. Audit logs contain only correlation, operation type, approved logical resource reference, state, attempt and stable category—never PowerShell streams, commands, tokens, private-key material, secret references or mailbox/calendar content. Live Exchange execution remains gated by ADR-015.
 
-### Proposed local PoC diagnostics amendment
+### Accepted local PoC diagnostics scope
 
-Der lokale PoC schreibt allowlist-basierte strukturierte Logs nach stdout/stderr mit kurzer lokaler Retention. Azure Monitor, Log Analytics und Application Insights werden nicht provisioniert. Optionale lokale Telemetrie bleibt loopback-gebunden und synthetisch. Secret-/PII-Canaries, SQLite-Fehler, Container-Neustart und Mock-API-Ausfälle gehören in die Tests. Dieser Zusatz bleibt **Proposed**.
+Der lokale PoC schreibt allowlist-basierte strukturierte Logs nach stdout/stderr mit kurzer lokaler Retention. Azure Monitor, Log Analytics und Application Insights werden nicht provisioniert. Optionale lokale Telemetrie bleibt loopback-gebunden und synthetisch. Secret-/PII-Canaries, SQLite-Fehler, Container-Neustart und Mock-API-Ausfälle gehören in die Tests.
 
 ## Dependencies
 ADR-004, ADR-007, ADR-013.
@@ -53,7 +54,7 @@ Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Des
 - Gibt es bereits akzeptierte ADRs oder technische Vorgaben im Repository, die dieser Entscheidung widersprechen?
 - Sind relevante Microsoft-365-Funktionen, API-Versionen, Berechtigungen und Lizenzbedingungen für den vorgesehenen Tenant geprüft?
 - Ist der vorgeschlagene Umfang für das MVP angemessen?
-- **Approval gate:** Entscheidung bleibt bis zur expliziten Architekturfreigabe `Proposed`.
+- Production SLOs, telemetry destination, retention and on-call ownership require separate approval.
 
 ## References
 - Projektquelle: `PlaceHub_Project_Prompt.md` (vom Nutzer bereitgestellt; Anforderungen, ADR-Index und Zielarchitektur).

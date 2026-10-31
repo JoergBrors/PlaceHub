@@ -34,6 +34,9 @@ ADR-004, ADR-007, ADR-010.
 ## Validation / Proof of Concept
 API-Limits, Änderungsfrequenz, notwendige Refresh-Zyklen und Reconciliation-Fehler prüfen.
 
+## Proposed local PoC refinement (not approved)
+Offline Graph-/Exchange-Mocks sind Test-Fixtures und müssen in Datenmodell, UI und Telemetrie eindeutig als nicht-live erkennbar sein. Ein lokaler Cache darf weder Microsoft Places noch Exchange-Buchungen autoritativ ersetzen; TTL, Invalidierung, Sync und Reconciliation bleiben offen.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

@@ -39,6 +39,8 @@ Delegierte Berechtigungen sind für interaktive Lese- und Buchungsvorgänge der 
 
 Exchange Equipment Mailbox provisioning and booking-policy configuration use the supported ExchangeOnlineManagement interface in a separate privileged worker, not Graph or EWS. Graph remains responsible for supported scheduling operations. The detailed boundary remains unapproved in `../exchange-provisioning-architecture.md`.
 
+For the local PoC, Graph and Exchange adapters are offline mocks by default. EWS and EWS Managed API are prohibited. Exact operations, permission IDs, tenant capability/licensing and consent remain test-tenant evidence gates.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

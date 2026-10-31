@@ -2,7 +2,7 @@
 
 ## Status and trust boundaries
 
-This implementation prepares the delivery foundation; it does not select PlaceHub hosting resources. ADR-016 is **Accepted**, by Project Owner approval dated 2026-10-31. Its acceptance approves the delivery architecture, not live permissions or deployments. No command in this repository grants Graph admin consent, Exchange permissions, or performs `terraform apply` outside the manually dispatched workflow.
+This implementation prepares the delivery foundation; it does not select PlaceHub hosting resources. ADR-016 is **Accepted as amended** by Project Owner approval dated 2026-10-31. The development workflow now classifies approved in-boundary create/update; destructive and unknown changes remain blocked. No command here grants Graph admin consent, Exchange permissions, or performs `terraform apply` outside the manually dispatched workflow.
 
 Four identities must remain separate:
 
@@ -30,7 +30,7 @@ $target = '<tenant-guid>/<subscription-guid>/<owner/repo>/<environment>'
 
 `-DryRun` performs authentication and read checks but suppresses the entire dependent mutation phase. `-WhatIf` has the same mutation guarantee. Neither mode substitutes placeholder identities or attempts downstream RBAC after a suppressed identity creation. The script is idempotent: it reuses uniquely named resources, verifies existing federated trust, and uses idempotent ARM/role assignment operations. Multiple same-name Entra apps stop execution.
 
-Mutation mode additionally requires `-ApproveWorkloadContributor`. That switch records explicit operator authorization to assign Contributor on the single environment workload Resource Group; accepting ADR-016 does not supply this authorization. Use the switch only after the assignment has been approved through the applicable change/security process. It does not authorize production deployment.
+Mutation mode additionally requires `-ApproveWorkloadContributor`. This bootstrap-only switch authorizes an effective RBAC grant to the deployment identity, not an ordinary Terraform resource create/update. Amended ADR-016 does not grant unrestricted privilege elevation, so the switch remains required until the exact environment permission bootstrap is separately authorized. It does not authorize production deployment.
 
 Repairing an existing, mismatched federated credential additionally requires `-ApproveOidcCredentialRepair`. The switch authorizes only an in-place Microsoft Graph `PATCH` of the one uniquely named credential discovered for the target environment. The script does not create a second credential, broaden the issuer/audience, change GitHub OIDC settings, or proceed when duplicate named credentials exist. It reads the credential back and requires an exact match after repair.
 
@@ -74,7 +74,7 @@ The applied configuration permits only the exact `main` branch through a custom 
 
 Required reviewers and prevent-self-review are plan-dependent. GitHub documents that on Free, Pro and Team plans they are available only for public repositories; private/internal use requires applicable Enterprise capability. The script fails with `PROTECTION_UNSUPPORTED` when requested support cannot be established and reports API refusal rather than silently omitting controls. Confirm current GitHub plan behavior before relying on reviewers.
 
-This implements ADR-016's protected-environment foundation without changing its approval semantics. Environment reviewer approval occurs **before** the Terraform job and therefore before plan generation. It is not post-plan approval, and the approved architecture does not transfer a sensitive plan between jobs or runs.
+This script implements ADR-016's protected-environment foundation. Environment approval occurs **before** plan generation; the classifier then distinguishes non-destructive, destructive and unknown plans in the same protected job. Until protected exact-plan retention exists, destructive plans fail closed rather than use an ordinary artifact. The detailed design is documented in [Terraform change governance](terraform-change-governance.md).
 
 ## Safe logging and incident investigation
 
@@ -133,24 +133,40 @@ Routine errors remain sanitized. A malformed internally constructed ARM URL is `
 | Azure ARM | Contributor | Approved workload resource group only | Create/update application Azure resources; excludes RBAC assignment. Approval gate because final resource set is not yet defined. |
 | Azure Storage data | Storage Blob Data Contributor | Exact state container | Read/write/delete state and acquire blob lease. Required. |
 | Azure ARM | Reader | Storage account | Not assigned; only needed if backend blob endpoint lookup is enabled. |
-| Microsoft Graph | `Application.ReadWrite.OwnedBy` application permission | Tenant directory, effective only for owned apps/SPs | Candidate if Terraform must create/manage PlaceHub app registrations. Requires admin consent and careful ownership bootstrap. Not assigned. It still permits listing apps/SPs and credential management for owned objects. |
+| Microsoft Graph | `Application.ReadWrite.OwnedBy` application permission | Tenant directory, effective write authority for owned apps/SPs | Preferred candidate under amended ADR-016 for approved app/service-principal create/update. Requires admin consent, ownership bootstrap and provider-operation proof. Not assigned. It still permits listing apps/SPs and credential management for owned objects. |
 | Microsoft Graph | `Application.ReadWrite.All` | Tenant directory | Broad fallback; not approved and must not be granted without architecture/security approval. |
 | Microsoft Graph | `AppRoleAssignment.ReadWrite.All` | Tenant directory | Needed for some API permission grants/app-role assignments; highly privileged and can elevate applications. Not approved; keep consent/provisioning outside routine Terraform unless separately designed. |
 | Exchange Online | Application RBAC management role | Scoped management scope | Only if a separate provisioning identity manages mailboxes. Not part of Terraform deployment identity and not configured. |
 | GitHub | `id-token: write`, `contents: read` | Single workflow job/repository | Obtain OIDC token and read source. No write token permission. |
 
-The AzureAD provider uses Microsoft Graph. The least-privilege feasibility of owned-object management, service-principal ownership, app roles and consent must be proven in the approved test tenant before adding any `azuread_*` resources. Terraform cannot turn ARM RBAC into directory permission, and neither grants Exchange authorization.
+The AzureAD provider uses Microsoft Graph. Provider 3.10.0 documents `Application.ReadWrite.OwnedBy` for application and service-principal resources when the caller is an owner. Owner addition can require `Directory.Read.All`, so an independently authorized Entra administrator must establish and verify the exact ownership bootstrap and consent; the workflow must not silently expand permissions. Terraform cannot turn ARM RBAC into directory permission, and neither grants Exchange authorization.
+
+The development classifier and semantic policy are implemented in `scripts/Classify-TerraformPlan.ps1` and `infrastructure/terraform/policy/development.json`. A plan-only run reports only classification, action counts and policy version. `operation=apply` may proceed automatically only for `NO_CHANGE`, `CREATE_ONLY`, `UPDATE_ONLY` or `CREATE_AND_UPDATE` under policy `2026-10-31.1`; the SHA-256 digest is rechecked immediately before exact saved-plan apply. Destructive and unknown plans remain blocked. The plan and JSON are never uploaded or printed.
+
+Safe plan command:
+
+```powershell
+gh workflow run terraform.yml --repo "JoergBrors/PlaceHub" --ref main -f target_environment=development -f operation=plan
+```
+
+After the ownership/admin-consent prerequisite is independently completed and the plan classification is one of the four allowed values, the authorized non-destructive dispatch is:
+
+```powershell
+gh workflow run terraform.yml --repo "JoergBrors/PlaceHub" --ref main -f target_environment=development -f operation=apply
+```
+
+Never use the apply command for a destructive/unknown plan or as a substitute for the ownership bootstrap. No command in this guide grants Graph admin consent, Exchange permission or a directory role.
 
 ## Remaining approval requirements
 
-ADR-016 acceptance leaves these gates open:
+Amended ADR-016 authorizes routine create/update only inside a previously approved boundary. These gates remain open:
 
 - **Workload Resource Group Contributor:** approve the exact environment Resource Group assignment before using `-ApproveWorkloadContributor`.
-- **Terraform management of Entra applications:** approve the resource scope, ownership lifecycle and provider design before adding `azuread_*` resources.
+- **Terraform management of Entra applications:** the approved resources and empty permission allowlist are now defined, but live use still requires the exact owned-object bootstrap and administrator consent for the Terraform identity. Declarations do not grant effective consent.
 - **Microsoft Graph admin consent:** not granted by bootstrap; requires separate privileged approval and execution.
 - **GitHub Environment reviewers:** verify repository-plan support, configure required reviewers and prevent self-review where required before relying on a four-eyes control.
-- **Production:** separately authorize the production environment bootstrap and every production apply under the operating change process.
-- **Future post-plan approval:** requires an approved confidential plan-transfer, integrity, retention and cleanup design. The accepted workflow currently has only pre-plan Environment approval.
+- **Production:** separately authorize the production environment boundary. In-boundary create/update then follows ADR-016; every destructive production plan still needs explicit approval.
+- **Destructive post-plan approval:** requires approved confidential exact-plan retention/transfer, integrity, run/commit/environment binding, retention and cleanup. Until implemented, destructive plans fail closed.
 
 ## Validation and failure exercises
 

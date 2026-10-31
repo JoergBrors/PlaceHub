@@ -338,13 +338,17 @@ Potential later improvements:
 
 PlaceHub follows a documentation-driven engineering process.
 
-The current architecture baseline contains ADR-001 through ADR-016. ADR-016 is accepted; ADR-001 through ADR-015 remain proposed.
+The current baseline accepts ADR-001, 002, 003, 009, 010, 012, 013, 014 and 016. ADR-004–008, 011 and 015 remain proposed pending Microsoft 365 capability, privacy, synchronization and privileged-operation decisions.
 
-**ADR-016 governs Terraform delivery only. All application, hosting, identity, Microsoft Graph and Exchange decisions still require explicit approval.**
+**The accepted application scope is a local Docker/SQLite PoC with zero incremental Azure cost. Permissions, tenant mutations, privileged Exchange execution, paid services and production remain separately gated. ADR-016 continues to govern Terraform delivery only.**
 
 Before implementation, contributors must inspect existing repository documentation, review applicable ADRs, resolve conflicts, and validate relevant Microsoft 365 capabilities.
 
-Current discovery documents: [local-first Docker PoC](Docs/local-first-poc-architecture.md), [infrastructure architecture](Docs/infrastructure-architecture-discovery.md), [Entra application and permission architecture](Docs/entra-application-permission-architecture.md), and [Exchange provisioning architecture](Docs/exchange-provisioning-architecture.md).
+Current discovery documents: [ADR consistency audit](Docs/adr-consistency-audit.md), [local-first Docker PoC](Docs/local-first-poc-architecture.md), [infrastructure architecture](Docs/infrastructure-architecture-discovery.md), [Entra application and permission architecture](Docs/entra-application-permission-architecture.md), and [Exchange provisioning architecture](Docs/exchange-provisioning-architecture.md).
+
+Terraform change authorization is defined in [amended ADR-016](Docs/Adr/ADR-016-github-actions-terraform-delivery.md) and the [change-governance specification](Docs/terraform-change-governance.md): approved in-boundary create/update is routine; deletion, replacement and access removal require explicit exact-plan approval.
+
+The initial PoC is an architecture baseline, not an implemented application. No Azure application resource, live tenant permission or Exchange mutation is implied by these documents.
 
 No undocumented architectural decisions should be introduced during implementation.
 

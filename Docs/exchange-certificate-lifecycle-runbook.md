@@ -1,57 +1,69 @@
 # Exchange provisioning certificate lifecycle runbook
 
-**Status:** Draft; execution requires approved identity, worker, tenant, certificate authority/store and change record.
+**Status:** Draft operational design under proposed ADR-015; execution requires approved tenant, worker, application, permission and change record.
 
-## Ownership and inventory
+## Shared requirements
 
-The certificate service owner owns availability; the security/PKI owner approves issuance and revocation; the Entra administrator uploads/removes public credentials; the worker operator validates runtime retrieval; the Exchange administrator validates app-only access. Separate production and development duties where policy requires.
+The service owner owns availability; security/PKI approves issuance/revocation; Entra administrators upload/remove public credentials; the worker operator validates runtime access; Exchange administrators validate effective authorization. Inventory contains environment, application reference, serial/thumbprint, issuer, CSP provider, key specification, validity, store/version reference, owner, ticket and last test—never PFX, password, private key or token.
 
-Inventory records environment, application ID/object reference, certificate serial/thumbprint, issuer, CSP provider, key specification, `notBefore`/`notAfter`, Key Vault certificate and secret version or local store reference, owner, change ticket and last successful test. It never contains PFX bytes, password, private key, token or secret value.
+Use RSA 2048-or-stronger, SHA-256, a supported legacy CSP and `AT_KEYEXCHANGE`; reject CNG/KSP certificates for this Exchange Online PowerShell CBA path. Upload only the public certificate to Entra. Development and production use separate applications, key pairs, stores and operators where policy requires.
 
-## Enrollment
+## Initial local-PoC path: Windows certificate store
 
-1. Open an approved change for the exact environment and `placehub-m365-provisioning-<environment>` application.
-2. Generate/enroll RSA 2048-or-stronger using the approved legacy CSP and `AT_KEYEXCHANGE`; explicitly reject CNG/KSP output.
-3. Mark the key exportable only because the Exchange module/Key Vault memory-loading design requires it. Restrict the enrollment workspace and remove temporary export files through the approved secure-media procedure.
-4. Validate private-key presence, provider/type, key size, signature, dates and intended use offline. Never print private material.
-5. Import PFX into the approved environment Key Vault as an exportable certificate, or into the ACL-restricted development service-account certificate store. Upload only the public certificate to the matching Entra application.
-6. Verify public-key/thumbprint equality, inventory metadata and access-denial tests before enabling the version.
+The first approved test-tenant proof runs as a dedicated Windows service account outside the web container. Enroll the CSP-backed certificate directly into that account's CurrentUser personal store where possible. Mark the private key non-exportable when the enrollment and rotation process does not require PFX transport. Exchange CBA through `Connect-ExchangeOnline -CertificateThumbprint` uses the installed private key and does not itself require exportability.
 
-## Monitoring
+Private-key ACLs grant read/use only to the dedicated service account and authorized recovery operators. Interactive developers, the web/container identity, Docker engine guests and Terraform identity receive no access. Prohibit profile roaming, interactive sign-in for the service account, PowerShell transcription, process dumps and certificate-store mounts into containers.
 
-- Alert certificate and backing-secret expiry at 60, 30, 14 and 7 days; page the owner at the final threshold.
-- Monitor Key Vault read anomalies, disabled/deleted certificate versions, Entra service-principal sign-in failures, Exchange authentication failures and unexpected source hosts.
-- Review current and previous credentials, owners, Key Vault/RBAC assignments and Exchange roles quarterly.
-- Treat an unowned certificate, missing expiry, unexpected credential, cross-environment read or private-key export as a security incident.
+If organizational PKI delivery requires a PFX, treat exportability as a temporary enrollment/transport concession: create it only in an approved workspace, protect it through the authorized transfer channel, import it with a non-exportable runtime key where supported, verify access, then destroy transport copies under the media-handling procedure. Never store PFX/passwords in Git, `.env`, Compose, CI artifacts or ordinary shared storage.
 
-## Planned rotation
+### Local enrollment and validation
 
-1. At least 60 days before expiry, create a new CSP RSA key pair and certificate following enrollment.
-2. Add the new public certificate to the same environment application without removing the old credential.
-3. Add/import a new Key Vault certificate version or local-store certificate; never overwrite evidence of the previous version.
-4. Configure the worker to select the explicitly approved new version, not merely “latest,” then execute authentication and read-only command tests.
-5. Run one approved synthetic provisioning verification and confirm sanitized audit correlation.
-6. Observe the approved stabilization window. Keep the old certificate enabled only for rollback and never beyond its expiry/policy limit.
-7. Remove the old public credential from Entra, disable the old Key Vault version/store key, verify that old authentication fails and new authentication succeeds, then complete the inventory/change record.
+1. Approve the exact environment, app, service account, provider, key length, lifetime and subject.
+2. Enroll into the service-account store using the approved CSP/`AT_KEYEXCHANGE`; reject CNG/KSP.
+3. Apply and verify private-key ACLs and non-exportability; record public metadata only.
+4. Upload the public certificate to the matching Entra application under a separate administrator action.
+5. Prove public-key equality, app-only authentication and allowlisted read-only Exchange command in the test tenant.
+6. Prove that the web user, ordinary developer, Terraform identity and another service account cannot use/read the private key.
 
-## Failed rotation and rollback
+## Future Azure path: Key Vault and Managed Identity
 
-Before old-credential removal, revert the worker's version selection to the old valid certificate, disconnect all Exchange sessions and investigate with sanitized evidence. Do not create a client secret. If the old certificate is expired or suspected compromised, rollback is prohibited; use emergency replacement.
+This path is not part of the zero-incremental-cost PoC. It requires ADR-013/015 amendment, cost approval, a dedicated worker/runtime identity, one approved vault per environment, Azure RBAC, monitoring, soft delete and purge protection.
 
-## Emergency revocation/replacement
+For `Connect-ExchangeOnline -Certificate <X509Certificate2>`, the future worker must retrieve the certificate's backing secret. That Key Vault certificate must therefore have an exportable RSA private key; a non-exportable Key Vault/HSM key cannot be substituted directly for this object-based flow. The runtime identity receives only the reviewed certificate/secret read role, never Key Vault Administrator. PFX bytes exist only in the isolated worker's process memory, are not written to disk, and are disposed with the Exchange session. Host administrators/process dumps remain a documented extraction risk.
 
-1. Stop or quarantine the worker and reject new provisioning requests.
-2. Remove/disable the compromised public credential in Entra and disable its Key Vault/store version. Revoke through the issuer when supported.
-3. Review Entra sign-ins, Key Vault access, Exchange audit and PlaceHub correlation records for the exposure window.
-4. Enroll a new key pair on a clean approved host, upload/import through separated operators and rerun access-denial plus app-only authentication tests.
-5. Resume only after the security owner accepts investigation findings and Exchange effective permissions are reconfirmed.
-6. Reconcile all operations from the exposure/outage window; do not assume failed commands made no change.
+## Monitoring and planned rotation
 
-## Process-memory handling
+- Alert at 60, 30, 14 and 7 days before expiry and on unexpected Entra sign-ins, authentication failures, certificate-store/key ACL changes or—on the future path—Key Vault reads/version changes.
+- Review credentials, owners, store ACLs and Exchange assignments quarterly.
+- Treat an unexpected credential, private-key export, cross-environment use or missing owner/expiry as an incident.
 
-Retrieve the exportable PFX backing secret through the runtime managed identity, decode only in the isolated worker process and construct an ephemeral `X509Certificate2`. Do not use `PersistKeySet`, a PFX file, PowerShell transcription, a command-line password or environment variable. Pass the object directly to `Connect-ExchangeOnline -Certificate`; disconnect in `finally`, dispose certificate/key objects and terminate the short-lived process. Managed memory disposal reduces exposure but does not guarantee physical zeroization, so host isolation and dump prevention remain mandatory.
+Rotation procedure:
+
+1. At least 60 days before expiry, enroll a new CSP RSA certificate using the selected path.
+2. Add its public certificate to the same environment application without removing the old one.
+3. Grant only the service account access to the new local key, or add the approved future vault version.
+4. Select the new thumbprint/version explicitly and perform authentication plus read-only tests.
+5. Run one separately approved synthetic verification and observe the stabilization window.
+6. Remove the old Entra public credential, remove/disable the old local key or future vault version, verify old authentication fails and new succeeds, and close inventory/change records.
+
+Before old-key removal, rollback may select the still-valid old certificate. Never use a client secret. If the old certificate is expired or suspected compromised, use emergency replacement instead.
+
+## Emergency response
+
+1. Stop/quarantine the worker and reject provisioning requests.
+2. Remove the compromised public credential from Entra and deny access to the local key or disable the future vault version; revoke at the issuer when supported.
+3. Review Entra sign-ins, Exchange audit, local security logs and PlaceHub correlations; on the future path include Key Vault audit.
+4. Enroll a new key on a clean approved host and repeat access-denial and authentication tests.
+5. Resume only after security acceptance; reconcile every operation from the exposure/outage window.
 
 ## Recovery exercises
 
-Twice yearly in the test tenant, exercise expiry alert, planned overlap, rollback, compromised-key revocation, Key Vault denial/outage, deleted-version recovery within soft-delete retention and worker rebuild from pinned dependencies. Record only sanitized evidence and remediation actions.
+Twice yearly in the test tenant, exercise expiry alert, overlap, rollback, emergency revocation, service-account/key ACL denial, worker rebuild and lost/corrupt store recovery. Future Key Vault exercises are added only after that path is approved. Evidence is sanitized and contains no private material.
+
+## Official references
+
+- [Exchange Online PowerShell app-only authentication](https://learn.microsoft.com/powershell/exchange/app-only-auth-powershell-v2)
+- [`Connect-ExchangeOnline`](https://learn.microsoft.com/powershell/module/exchangepowershell/connect-exchangeonline)
+- [Key Vault certificate exportability](https://learn.microsoft.com/azure/key-vault/certificates/about-certificates)
+- [Export Key Vault certificates](https://learn.microsoft.com/azure/key-vault/certificates/how-to-export-certificate)
 

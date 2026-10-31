@@ -1,11 +1,12 @@
 # ADR-003: Backend Architecture with .NET 10
 
-- **Status:** Proposed (nicht genehmigt)
+- **Status:** Accepted
 - **Priority:** P0
 - **Date:** 2026-10-31
 - **Project:** PlaceHub – Workplace & Resource Management
-- **Decision owner:** Noch festzulegen
-- **Governance:** New ADR Required; vor Annahme bestehende Repository-ADRs prüfen
+- **Approval date:** 2026-10-31
+- **Decision authority:** Project Owner approval
+- **Governance:** Accepted for the initial modular-monolith implementation
 
 ## Context
 Microsoft-Graph-SDK-Typen und UI-Komponenten sollen nicht die Fachlogik bestimmen.
@@ -13,7 +14,7 @@ Microsoft-Graph-SDK-Typen und UI-Komponenten sollen nicht die Fachlogik bestimme
 ## Problem
 Welche dauerhafte Architekturentscheidung wird für **Backend Architecture with .NET 10** benötigt, ohne die Microsoft-365-Verantwortlichkeiten, Sicherheit oder Einfachheit des Systems zu gefährden?
 
-## Proposed Decision
+## Decision
 Trennung nach Presentation, Application, Domain und Infrastructure; fachliche Use Cases erhalten abstrahierte Integration-Ports. Keine zwingende Assembly pro Schicht.
 
 ## Alternatives Considered
@@ -34,7 +35,7 @@ ADR-001, ADR-004, ADR-014.
 ## Validation / Proof of Concept
 Struktur erst nach Repositoryinspektion verbindlich festlegen; Architekturtests für Abhängigkeiten.
 
-## Proposed portability refinement (not approved)
+## Accepted portability scope
 Application und Domain verwenden Ports für Datenbank, Graph, Provisionierung, Konfiguration, Secrets und Runtime Identity. Docker-, Azure-, EF-Provider-, Graph-SDK- und PowerShell-Implementierungen bleiben in Infrastructure/Hosting-Adaptern. Das gleiche Web-Image soll später nach expliziter Kompatibilitätsprüfung auf einem genehmigten Containerhost laufen können.
 
 ## Documentation Impact
@@ -44,7 +45,7 @@ Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Des
 - Gibt es bereits akzeptierte ADRs oder technische Vorgaben im Repository, die dieser Entscheidung widersprechen?
 - Sind relevante Microsoft-365-Funktionen, API-Versionen, Berechtigungen und Lizenzbedingungen für den vorgesehenen Tenant geprüft?
 - Ist der vorgeschlagene Umfang für das MVP angemessen?
-- **Approval gate:** Entscheidung bleibt bis zur expliziten Architekturfreigabe `Proposed`.
+- Concrete project layout is implementation detail; abandoning the modular monolith requires an amendment.
 
 ## References
 - Projektquelle: `PlaceHub_Project_Prompt.md` (vom Nutzer bereitgestellt; Anforderungen, ADR-Index und Zielarchitektur).

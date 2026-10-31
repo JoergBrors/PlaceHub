@@ -39,6 +39,8 @@ App-only Kalenderzugriff muss durch Exchange Application RBAC auf ausdrücklich 
 
 Für die Verwaltung ist zertifikatsbasierte App-only-Authentifizierung mit `placehub-m365-provisioning-development` vorgeschlagen. Da ein Resource Scope ein noch nicht existierendes Postfach nicht zuverlässig begrenzen kann, bleibt entweder die menschliche Erstellung mit anschließender Markierung oder die explizite Akzeptanz einer verbleibenden organisationsweiten Create-Berechtigung erforderlich. Löschung ist nicht Teil des vorgeschlagenen Adapters.
 
+Der lokale PoC verwendet ausschließlich Mocks. Equipment Mailbox bleibt der bevorzugte Kandidat, Room Mailbox bleibt Bestandteil des Testtenant-Vergleichs. Eine organisationsweite automatische `New-Mailbox`-Berechtigung ist nicht genehmigt.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

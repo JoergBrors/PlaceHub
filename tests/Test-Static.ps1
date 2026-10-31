@@ -12,10 +12,19 @@ $adrIndex = Get-Content -Raw (Join-Path $root 'Docs/Adr/README.md')
 $identityArchitecture = Get-Content -Raw (Join-Path $root 'Docs/entra-application-permission-architecture.md')
 $exchangeArchitecture = Get-Content -Raw (Join-Path $root 'Docs/exchange-provisioning-architecture.md')
 $certificateRunbook = Get-Content -Raw (Join-Path $root 'Docs/exchange-certificate-lifecycle-runbook.md')
+$localPocArchitecture = Get-Content -Raw (Join-Path $root 'Docs/local-first-poc-architecture.md')
+$adrAudit = Get-Content -Raw (Join-Path $root 'Docs/adr-consistency-audit.md')
+$classifierPath = Join-Path $root 'scripts/Classify-TerraformPlan.ps1'
+$classifier = Get-Content -Raw $classifierPath
+$entraTerraform = Get-Content -Raw (Join-Path $root 'infrastructure/terraform/entra-applications.tf')
+$developmentPolicy = Get-Content -Raw (Join-Path $root 'infrastructure/terraform/policy/development.json')
 
 $tokens = $null; $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($bootstrapPath, [ref]$tokens, [ref]$errors)
 if ($errors.Count) { throw 'PowerShell syntax validation failed.' }
+$classifierTokens = $null; $classifierErrors = $null
+$null = [System.Management.Automation.Language.Parser]::ParseFile($classifierPath, [ref]$classifierTokens, [ref]$classifierErrors)
+if ($classifierErrors.Count) { throw 'Terraform classifier PowerShell syntax validation failed.' }
 
 function Assert-True([bool]$Condition, [string]$Message) { if (-not $Condition) { throw $Message } }
 function Assert-Absent([string]$Content, [string]$Pattern, [string]$Message) { if ($Content -match $Pattern) { throw $Message } }
@@ -26,6 +35,9 @@ Assert-True ($workflow -match 'id-token:\s*write' -and $workflow -match 'content
 Assert-Absent $workflow '(?i)terraform\s+destroy|upload-artifact|download-artifact|ARM_CLIENT_SECRET|AZURE_CREDENTIALS' 'Forbidden destroy, artifact, or long-lived credential pattern found.'
 Assert-Absent $workflow '(?im)terraform\s+show|terraform\s+(output|state\s+(pull|show))|^\s*(printenv|env)(\s|$)|set\s+-x|TF_LOG' 'Workflow may disclose Terraform or environment data.'
 Assert-True ($workflow -match 'terraform apply[^\r\n]*\$TF_PLAN_PATH') 'Apply must consume the exact saved plan.'
+Assert-True ($workflow -match 'Classify-TerraformPlan\.ps1' -and $workflow -match 'steps\.classify\.outputs\.classification') 'Structured Terraform classification is not wired into the workflow.'
+Assert-True ($workflow -match 'sha256sum.+TF_PLAN_PATH' -and $workflow -match 'TERRAFORM_PLAN_INTEGRITY_FAILED') 'Exact-plan digest verification is missing.'
+Assert-True ($workflow -match 'TERRAFORM_DESTRUCTIVE_APPROVAL_REQUIRED' -and $workflow -match 'UNKNOWN_OR_UNVERIFIABLE') 'Destructive or unknown plans are not fail-closed.'
 Assert-True ($workflow -match 'terraform plan[^\r\n]*-detailed-exitcode') 'Plan must derive only a minimal change status.'
 Assert-True ($workflow -match 'Changes detected: yes' -and $workflow -match 'Changes detected: no') 'Allowlisted plan summary missing.'
 Assert-True ($workflow -match 'rm -f -- "\$TF_PLAN_PATH"' -and $workflow -match '\$\{\{ always\(\) \}\}') 'Saved plan cleanup missing.'
@@ -54,11 +66,17 @@ Assert-True ($bootstrap -match "Invoke-AzRestJsonMutation -Method patch.+existin
 $inlineFicBody = "'--body'," + '$ficBody'
 Assert-True (-not $bootstrap.Contains("'--body','{") -and -not $bootstrap.Contains($inlineFicBody)) 'Inline JSON remains in an Azure REST invocation.'
 Assert-True (($bootstrap | Select-String -Pattern 'Invoke-AzRestJsonMutation' -AllMatches).Matches.Count -ge 3) 'Container and federated credential JSON do not share the @file helper.'
-Assert-True ($adr016 -match '\*\*Status:\*\* Accepted' -and $adr016 -match '\*\*Approval date:\*\* 2026-10-31' -and $adr016 -match '\*\*Decision authority:\*\* Project Owner approval') 'ADR-016 acceptance metadata is incomplete.'
-Assert-True ($adrIndex -match '\[016\].*\| Accepted \|') 'ADR index does not mark ADR-016 Accepted.'
-foreach ($adrNumber in @('002','004','005','006','007','009','013','015')) {
+Assert-True ($adr016 -match '\*\*Status:\*\* Accepted, amended' -and $adr016 -match '\*\*Original decision date:\*\* 2026-10-31' -and $adr016 -match '\*\*Amendment date:\*\* 2026-10-31' -and $adr016 -match '\*\*Amendment authority:\*\* Project Owner approval') 'ADR-016 amendment metadata is incomplete.'
+Assert-True ($adrIndex -match '\[016\].*\| Accepted \(amended\) \|') 'ADR index does not mark ADR-016 Accepted (amended).'
+foreach ($adrNumber in @('001','002','003','009','010','012','013','014')) {
     $adr = Get-Content -Raw (Join-Path $root "Docs/Adr/ADR-$adrNumber-*.md")
-    Assert-True ($adr -match '\*\*Status:\*\* Proposed') "ADR-$adrNumber was inadvertently accepted."
+    Assert-True ($adr -match '\*\*Status:\*\* Accepted' -and $adr -match '\*\*Approval date:\*\* 2026-10-31' -and $adr -match '\*\*Decision authority:\*\* Project Owner approval') "ADR-$adrNumber acceptance metadata is inconsistent."
+    Assert-True ($adrIndex -match "\[$adrNumber\].*\| Accepted \|") "ADR index does not mark ADR-$adrNumber Accepted."
+}
+foreach ($adrNumber in @('004','005','006','007','008','011','015')) {
+    $adr = Get-Content -Raw (Join-Path $root "Docs/Adr/ADR-$adrNumber-*.md")
+    Assert-True ($adr -match '\*\*Status:\*\* Proposed') "ADR-$adrNumber was accepted despite an unresolved material decision."
+    Assert-True ($adrIndex -match "\[$adrNumber\].*\| Proposed \|") "ADR index does not mark ADR-$adrNumber Proposed."
 }
 Assert-True ($identityArchitecture -match 'Do not create `placehub-backend-development`' -and $identityArchitecture -match 'Terraform deployment application remains unchanged') 'Identity separation decision is incomplete.'
 foreach ($permissionId in @(
@@ -84,7 +102,7 @@ foreach ($requiredExchangeControl in @(
     'dc50a0fb-09a3-484d-be87-e023b12c6440',
     'Key Vault Secrets User',
     'A resource scope cannot reliably restrict a mailbox that does not exist',
-    'F1 App Service is not an approved or sufficient privileged execution boundary',
+    'hardened local Windows process is the first proof target',
     'EWS and EWS Managed API are prohibited'
 )) {
     Assert-True ($exchangeArchitecture.Contains($requiredExchangeControl)) "Exchange architecture is missing control: $requiredExchangeControl"
@@ -92,6 +110,32 @@ foreach ($requiredExchangeControl in @(
 Assert-True ($exchangeArchitecture -match 'New-Mailbox -Equipment' -and $exchangeArchitecture -match 'Get-EXOMailbox' -and $exchangeArchitecture -match 'Set-CalendarProcessing') 'Exchange command inventory is incomplete.'
 Assert-Absent $exchangeArchitecture '(?i)(create|use|fallback to).{0,30}client secret' 'Exchange architecture permits a client-secret fallback.'
 Assert-True ($certificateRunbook -match '60, 30, 14 and 7 days' -and $certificateRunbook -match 'old authentication fails' -and $certificateRunbook -match 'emergency replacement') 'Certificate rotation and emergency lifecycle controls are incomplete.'
+Assert-True ($certificateRunbook -match 'local certificate-store key may remain non-exportable|private key non-exportable' -and $certificateRunbook -match 'future Azure path') 'Local and future certificate paths are not clearly separated.'
+foreach ($guardrail in @('zero incremental Azure cost','Microsoft 365 operations are mocked by default','does not use an Azure free tier','any Terraform `resource`','Exchange worker stays outside Compose')) {
+    Assert-True ($localPocArchitecture -match [regex]::Escape($guardrail)) "Local-first architecture is missing guardrail: $guardrail"
+}
+Assert-True ($adrAudit -match 'ADR-by-ADR compliance matrix' -and $adrAudit -match '\| 016 Terraform delivery \| Accepted → \*\*Accepted, subsequently amended\*\*') 'ADR consistency audit is incomplete.'
+$terraformGovernance = Get-Content -Raw (Join-Path $root 'Docs/terraform-change-governance.md')
+foreach ($classification in @('NO_CHANGE','CREATE_ONLY','UPDATE_ONLY','CREATE_AND_UPDATE','DESTRUCTIVE_CHANGE','UNKNOWN_OR_UNVERIFIABLE')) {
+    Assert-True ($adr016.Contains($classification) -and $terraformGovernance.Contains($classification)) "Terraform governance is missing classification $classification."
+}
+Assert-True ($adr016 -match 'Any action list containing `delete`' -and $adr016 -match 'destructive plans \*\*must fail closed\*\*') 'ADR-016 does not fail closed for delete or unavailable plan retention.'
+Assert-True ($adr016 -match 'Development provisioning authorization record' -and $adr016 -match 'policy version `2026-10-31\.1`') 'ADR-016 development authorization record is incomplete.'
+Assert-True ($terraformGovernance -match 'verified non-destructive path' -and $terraformGovernance -match 'DESTRUCTIVE_CHANGE.+exits before apply') 'Implemented non-destructive transition is not documented.'
+Assert-True ($terraformGovernance -match 'Application.ReadWrite.OwnedBy' -and $terraformGovernance -match '`AppRoleAssignment.ReadWrite.All` is not approved') 'Entra least-privilege boundary is incomplete.'
+
+foreach ($classification in @('NO_CHANGE','CREATE_ONLY','UPDATE_ONLY','CREATE_AND_UPDATE','DESTRUCTIVE_CHANGE','UNKNOWN_OR_UNVERIFIABLE')) {
+    Assert-True ($classifier.Contains($classification)) "Classifier is missing $classification."
+}
+Assert-True ($classifier -match "terraform_version.+policy\.terraform_version" -and $classifier -match 'format_version') 'Classifier does not pin structured-plan compatibility.'
+Assert-Absent $classifier '(?i)Write-(Host|Output|Error).*(PlanJson|PlanPath|before|after|exception\.message)' 'Classifier may print sensitive plan content.'
+Assert-True ($developmentPolicy -match '"policy_version": "2026-10-31\.1"' -and $developmentPolicy -match 'https://localhost:8443/signin-oidc') 'Development policy version or exact redirect URI is missing.'
+foreach ($resourceAddress in @('azuread_application.placehub_web','azuread_service_principal.placehub_web','azuread_application.m365_provisioning','azuread_service_principal.m365_provisioning')) {
+    Assert-True ($developmentPolicy.Contains($resourceAddress)) "Development allowlist is missing $resourceAddress."
+}
+Assert-True (($entraTerraform | Select-String -Pattern '(?m)^resource "azuread_(application|service_principal)"' -AllMatches).Matches.Count -eq 4) 'Unexpected Entra Terraform resource count.'
+Assert-Absent $entraTerraform '(?i)azuread_(app_role_assignment|application_password|service_principal_password|application_certificate)|required_resource_access|Exchange\.ManageAsApp|Application\.ReadWrite' 'Terraform must not grant consent, permissions, credentials or role assignments.'
+Assert-Absent $entraTerraform '(?m)^resource "azurerm_' 'Paid Azure application resources are forbidden.'
 
 # Exercise the command wrapper with synthetic secret-like values. Native stdout/stderr and arguments must not escape on failure.
 $functionNames = @('Stop-Safe','New-ArmResourceUrl','New-GitHubEnvironmentSubject','Test-FederatedCredentialExact','Resolve-AzureFailureCategory','Invoke-SafeCommand','Invoke-AzRestJsonMutation')

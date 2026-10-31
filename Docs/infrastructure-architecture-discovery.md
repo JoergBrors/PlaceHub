@@ -1,6 +1,6 @@
 # Infrastructure architecture discovery
 
-**Status:** Draft assessment; local-first PoC proposal. No hosting, identity, database, Microsoft 365 or production decision is accepted.
+**Status:** Harmonized assessment. The local-first initial-PoC hosting/persistence baseline is accepted; Microsoft 365 permissions, privileged operations, paid cloud resources and production remain gated.
 
 **Date:** 2026-10-31
 
@@ -8,7 +8,7 @@
 
 The repository contains no application source project and no Terraform `resource` block. Terraform configures AzureRM/AzureAD providers, the OIDC/Entra-authenticated Azure Blob backend, tenant/subscription inputs, read-only client discovery and an identity consistency check. Bootstrap scripts manage the already-established delivery foundation outside Terraform. Local application work must neither duplicate nor modify it.
 
-ADR-016 is the sole accepted architecture decision. It governs Terraform delivery, not application hosting, and does not conflict with a local PoC.
+ADR-001, 002, 003, 009, 010, 012, 013, 014 and 016 are accepted in their documented scope. ADR-016 governs Terraform delivery, not application hosting, and does not conflict with the local PoC.
 
 ## Revised recommendation
 

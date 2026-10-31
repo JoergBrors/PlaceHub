@@ -34,6 +34,9 @@ ADR-009, ADR-010, ADR-012.
 ## Validation / Proof of Concept
 Native Besucherfunktion, Datenschutzanforderungen und Check-in/out MVP-Relevanz klären.
 
+## Proposed local PoC refinement (not approved)
+Der lokale PoC verwendet ausschließlich eindeutig synthetische, wegwerfbare Besucherdaten in SQLite. Reale Besucher-, Mitarbeiter- oder andere personenbezogene Produktivdaten sind ausgeschlossen. Ob Visitor Management Bestandteil des initialen PoC sein muss sowie Retention, Rechtsgrundlage und Lösch-/Exportprozess bleiben fachliche und Datenschutz-Gates.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

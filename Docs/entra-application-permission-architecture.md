@@ -1,6 +1,6 @@
 # Entra application and permission architecture
 
-**Status:** Draft for architecture and security approval; no registration, permission, consent, Exchange role, or credential is approved.
+**Status:** Development registration inventory approved for Terraform create/update on 2026-10-31; effective permissions, consent, Exchange roles and credentials remain unapproved.
 
 **Date:** 2026-10-31
 
@@ -8,7 +8,7 @@
 
 The proposed server-side Blazor Web App is one confidential web application. Use `placehub-frontend-development` for interactive sign-in and delegated Microsoft Graph calls. Do not create `placehub-backend-development` while UI and backend are one deployable process. Create it only after an approved split-hosted UI/API decision. Keep `placehub-m365-provisioning-development` isolated for explicitly approved unattended Microsoft 365 administration. The existing Terraform deployment application remains unchanged and receives no Graph or Exchange permission.
 
-This design is compatible with the cost-constrained F1/SQLite development proposal: application registrations and consent do not require an Azure database. It does not authorize F1 hosting, SQLite, or any identity creation.
+This design is compatible with the accepted local Docker/SQLite initial PoC: application registrations do not require Azure hosting. The Project Owner authorized Terraform preparation and future non-destructive creation/update of the two development registrations and their service principals through ADR-016 policy `2026-10-31.1`. This assignment does not authorize live tenant mutation, consent or effective access grants.
 
 | Identity | Proposed type and use | Explicitly excluded |
 |---|---|---|
@@ -19,7 +19,7 @@ This design is compatible with the cost-constrained F1/SQLite development propos
 
 ## Registration and token flows
 
-For `placehub-frontend-development`, configure the Web platform only. Use exact, approved redirect URIs such as `https://<approved-development-host>/signin-oidc` and a fixed local-development URI, plus the matching signed-out callback. Wildcards are forbidden. Disable implicit ID/access token issuance and public-client flows. Keep tokens server-side and use a secure, HTTP-only, same-site authentication cookie. Validate issuer, tenant, audience, nonce and state. Request only incremental scopes required by an enabled feature.
+For `placehub-frontend-development`, configure the Web platform only. The approved local callback is exactly `https://localhost:8443/signin-oidc`, with homepage `https://localhost:8443/` and sign-out callback `https://localhost:8443/signout-callback-oidc`. Wildcards are forbidden. Disable implicit ID/access token issuance and public-client flows. Keep tokens server-side and use a secure, HTTP-only, same-site authentication cookie. Validate issuer, tenant, audience, nonce and state. Request only incremental scopes required by an enabled feature.
 
 The browser authenticates to the confidential Blazor server through OIDC authorization code. The server calls Graph with the user's delegated token. It must authorize every operation from both an application role and a PlaceHub-owned location assignment; a role alone is insufficient. Proposed user-only app roles are `PlaceHub.OfficeManager`, `PlaceHub.LocationManager` and `PlaceHub.SystemAdministrator`. Their immutable role IDs must be generated once, committed as reviewed configuration and never regenerated during routine deployment.
 
@@ -63,11 +63,11 @@ There is an unresolved creation-scope problem: a new mailbox cannot match a mark
 
 Prefer a managed identity plus federated identity credential for the confidential web client if the selected App Service/.NET library combination proves this path. Microsoft.Identity.Web documents certificateless credentials using managed identity and federation. Until that proof succeeds, no runtime credential is approved. Do not create a client secret. A certificate is the fallback only after ownership, secure storage, rotation, expiry alerting and recovery are approved.
 
-The privileged provisioning identity should use a certificate with overlap rotation and emergency revocation, stored in an approved organizational certificate store. Do not place it in the F1 web app or repository. Azure Key Vault is not provisioned under the zero-new-paid-resource profile; selecting it requires a cost and hosting approval. Managed identity for Exchange automation must be assessed separately on a supported isolated compute host and does not justify running privileged administration in the web app.
+The privileged provisioning identity uses a certificate with overlap rotation and emergency revocation. For the local PoC proof, the preferred store is the dedicated Windows worker service account's OS certificate store; the web container never receives it. Azure Key Vault and Managed Identity are future paid-host options requiring separate approval.
 
-The detailed certificate, Key Vault, worker and Exchange-management design is specified in [Exchange Online parking-resource provisioning architecture](exchange-provisioning-architecture.md) and its [certificate lifecycle runbook](exchange-certificate-lifecycle-runbook.md). It requires a CSP-backed exportable RSA private key for the supported Exchange Online PowerShell CBA path; CNG and client-secret fallbacks are prohibited.
+The detailed certificate, future Key Vault, worker and Exchange-management design is specified in [Exchange Online parking-resource provisioning architecture](exchange-provisioning-architecture.md) and its [certificate lifecycle runbook](exchange-certificate-lifecycle-runbook.md). The local Windows runtime requires a CSP-backed RSA key but not general private-key exportability; only a PFX-transfer or future Key-Vault retrieval path requires exportability. CNG and client-secret fallbacks are prohibited.
 
-Future Terraform may own application objects, service principals, redirect URIs, app roles, federated credentials and declared `required_resource_access` only after ADR-016's Entra-management gate is approved. It must not grant admin consent, Exchange role assignments, directory roles, mailbox scope membership or credentials. Those remain privileged, auditable operator procedures. Object owners must be named security groups, not the Terraform deployment service principal as a standing privileged owner, unless separately approved.
+Under amended ADR-016, Terraform may create/update approved PlaceHub application objects, service principals, redirect URIs, app roles, federated-credential metadata and declared `required_resource_access` after the exact owned-object permission/ownership bootstrap is validated. `Application.ReadWrite.OwnedBy` is the preferred candidate; `Application.ReadWrite.All` and `AppRoleAssignment.ReadWrite.All` are not approved. Permission declaration is not effective grant or consent. Terraform must not grant admin/delegated consent, directory roles, Exchange RBAC, mailbox scope membership or private credentials unless a separate immutable permission policy and technical authority are explicitly approved. Deleting an app/service principal/credential/owner/assignment is destructive and requires exact-plan approval.
 
 ## Consent and change procedure
 
@@ -98,7 +98,7 @@ Quarterly and before production, enumerate effective Entra grants and Exchange a
 
 ## ADR impact and approval gates
 
-No conflict with accepted ADR-016 was found, provided its deployment identity remains unchanged and consent stays outside Terraform delivery. ADR-002, ADR-004, ADR-005, ADR-006, ADR-007, ADR-009, ADR-013 and ADR-015 remain proposed. Their new notes are design input, not acceptance.
+No conflict with amended ADR-016 was found, provided identity separation and the effective-grant policy are enforced. ADR-002, ADR-009 and ADR-013 are accepted in their local-PoC scope. ADR-004, ADR-005, ADR-006, ADR-007 and ADR-015 remain proposed; their permission and privileged-operation choices are not accepted by the delivery amendment.
 
 Provisioning must stop until the Project Owner and responsible security/Microsoft 365 authorities approve: the single-app Blazor topology; exact redirect URIs; application roles and location model; each exact Graph permission; delegated booking behavior; Exchange mailbox type, scope and custom management role; creation-scope solution; credential host/storage/rotation; whether Terraform manages Entra objects; admin consent; tenant licensing; and separate production registrations and controls.
 

@@ -138,6 +138,7 @@ jobs:
           echo "TERRAFORM_VALIDATE_OK"
 
       - name: Create saved plan
+        id: plan
         run: |
           set -euo pipefail
           trap 'rm -f -- "$TF_PLAN_PATH"' EXIT
@@ -151,13 +152,60 @@ jobs:
             2) echo "Changes detected: yes" ;;
             *) echo "TERRAFORM_PLAN_FAILED: FAILED" >&2; exit 1 ;;
           esac
+          plan_digest="$(sha256sum "$TF_PLAN_PATH" | cut -d ' ' -f 1)"
+          printf '%s\n' "plan_digest=$plan_digest" >> "$GITHUB_OUTPUT"
           trap - EXIT
 
-      - name: Apply the exact saved plan
+      - name: Classify saved plan against development policy
+        id: classify
+        shell: pwsh
+        run: >-
+          ../../scripts/Classify-TerraformPlan.ps1
+          -PlanPath $env:TF_PLAN_PATH
+          -PolicyPath ./policy/development.json
+          -Environment '${{ inputs.target_environment }}'
+          -GitHubOutputPath $env:GITHUB_OUTPUT
+
+      - name: Enforce non-destructive apply authorization
         if: ${{ inputs.operation == 'apply' }}
+        shell: bash
+        env:
+          SAFE_CLASSIFICATION: ${{ steps.classify.outputs.classification }}
+        run: |
+          set -euo pipefail
+          case "$SAFE_CLASSIFICATION" in
+            NO_CHANGE|CREATE_ONLY|UPDATE_ONLY|CREATE_AND_UPDATE)
+              echo "TERRAFORM_NON_DESTRUCTIVE_APPLY_AUTHORIZED"
+              ;;
+            DESTRUCTIVE_CHANGE)
+              echo "TERRAFORM_DESTRUCTIVE_APPROVAL_REQUIRED: FAILED" >&2
+              exit 1
+              ;;
+            UNKNOWN_OR_UNVERIFIABLE)
+              echo "TERRAFORM_PLAN_POLICY_FAILED: FAILED" >&2
+              exit 1
+              ;;
+            *)
+              echo "TERRAFORM_PLAN_POLICY_FAILED: FAILED" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Apply the exact saved plan
+        if: >-
+          ${{ inputs.operation == 'apply' &&
+              contains(fromJSON('["NO_CHANGE","CREATE_ONLY","UPDATE_ONLY","CREATE_AND_UPDATE"]'),
+              steps.classify.outputs.classification) }}
         run: |
           set -euo pipefail
           trap 'rm -f -- "$TF_PLAN_PATH"' EXIT
+          actual_digest="$(sha256sum "$TF_PLAN_PATH" | cut -d ' ' -f 1)"
+          if [[ "$actual_digest" != "${{ steps.plan.outputs.plan_digest }}" ]]; then
+            unset actual_digest
+            echo "TERRAFORM_PLAN_INTEGRITY_FAILED: FAILED" >&2
+            exit 1
+          fi
+          unset actual_digest
           if ! captured_output="$(terraform apply -no-color -auto-approve -lock-timeout=5m "$TF_PLAN_PATH" 2>&1)"; then
             unset captured_output
             echo "TERRAFORM_APPLY_FAILED: FAILED" >&2

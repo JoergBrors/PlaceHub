@@ -1,0 +1,36 @@
+{
+  "policy_version": "2026-10-31.1",
+  "environment": "development",
+  "terraform_version": "1.16.1",
+  "terraform_json_format_major": "1",
+  "allowed_resources": {
+    "azuread_application.placehub_web": "azuread_application",
+    "azuread_service_principal.placehub_web": "azuread_service_principal",
+    "azuread_application.m365_provisioning": "azuread_application",
+    "azuread_service_principal.m365_provisioning": "azuread_service_principal"
+  },
+  "applications": {
+    "azuread_application.placehub_web": {
+      "display_name": "placehub-frontend-development",
+      "sign_in_audience": "AzureADMyOrg",
+      "homepage_url": "https://localhost:8443/",
+      "logout_url": "https://localhost:8443/signout-callback-oidc",
+      "redirect_uris": ["https://localhost:8443/signin-oidc"],
+      "app_roles": {
+        "PlaceHub.OfficeManager": "166b3fc4-fb93-401b-b856-bffa0d682447",
+        "PlaceHub.LocationManager": "228e1fa0-cca2-4ac4-bc44-987ee444ba4c",
+        "PlaceHub.SystemAdministrator": "9a3f940c-08c4-4bd7-8cfa-106eaab349a5"
+      },
+      "required_resource_access": []
+    },
+    "azuread_application.m365_provisioning": {
+      "display_name": "placehub-m365-provisioning-development",
+      "sign_in_audience": "AzureADMyOrg",
+      "homepage_url": null,
+      "logout_url": null,
+      "redirect_uris": [],
+      "app_roles": {},
+      "required_resource_access": []
+    }
+  }
+}

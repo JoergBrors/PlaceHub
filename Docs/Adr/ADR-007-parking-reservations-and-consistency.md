@@ -37,6 +37,8 @@ Zwei konkurrierende Buchungen, Timeout nach Submit, Storno und Fremdbuchung test
 ## Proposed token-flow refinement (not approved)
 Bevorzugt erstellt der angemeldete Veranstalter mit delegiertem `Calendars.ReadWrite` eine reguläre Einladung an das Ressourcenpostfach. App-only Kalender-Schreibzugriff ist nur ein separat genehmigter Fallback mit nachgewiesenem Exchange-Mailbox-Scope.
 
+Lokale Mocks müssen Pending/Accepted/Declined/Unknown und verzögerte beziehungsweise widersprüchliche Antworten simulieren. Sie sind nie Buchungsautorität und müssen in UI, Daten und Logs eindeutig von Live-Exchange-Ergebnissen unterscheidbar sein.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

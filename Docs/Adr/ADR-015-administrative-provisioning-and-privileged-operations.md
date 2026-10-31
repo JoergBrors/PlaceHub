@@ -42,6 +42,8 @@ Die vorgeschlagene Authentifizierung verwendet ein CSP-basiertes exportierbares 
 
 Im initialen PoC ist der Adapter standardmäßig ein nicht privilegierter Mock. Für einen später separat genehmigten Testtenant-Nachweis wird zuerst ein gehärteter lokaler Windows-Worker mit OS-geschütztem Zertifikatsspeicher verwendet. Der Docker Socket und Host-Zertifikatsspeicher dürfen nie in den Webcontainer gemountet werden; ein Linux-Worker-Container benötigt einen eigenen Kompatibilitäts- und Isolationsnachweis.
 
+Im Windows-Zertifikatsspeicher darf der CSP-basierte private Schlüssel zur Laufzeit nicht exportierbar sein, sofern Enrollment/Rotation ohne PFX-Transfer auskommen; der Worker greift per Thumbprint unter dem dedizierten Servicekonto zu. Exportierbarkeit ist nur für einen ausdrücklich genehmigten Enrollment-/Transferpfad oder eine zukünftige Key-Vault-zu-`X509Certificate2`-Lösung erforderlich, nicht generell für Exchange-CBA aus dem lokalen Store.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

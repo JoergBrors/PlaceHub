@@ -37,6 +37,8 @@ CRUD- und Parent/Child-Funktionen in Testtenant prüfen; Desk Pool vs. Workspace
 ## Proposed permission refinement (not approved)
 `Place.Read.All` ist der initiale Lesekandidat. `Place.ReadWrite.All` bleibt unabhängig vom delegated/application-Typ bis zur expliziten Genehmigung interaktiver oder unattended Places-Verwaltung zurückgestellt.
 
+Offline-PoC-Daten müssen eindeutig als Mock gekennzeichnet sein und dürfen keine konkurrierende Places-Hierarchie werden. Desk Pool/Workspace-Fähigkeiten, Objektbeziehungen und Tenant-Lizenzierung bleiben unbestätigt, bis sie gegen aktuelle Microsoft-Dokumentation und den Testtenant geprüft sind.
+
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 

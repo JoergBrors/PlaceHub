@@ -1,6 +1,6 @@
 # Local-first Docker proof-of-concept architecture
 
-**Status:** Draft; no implementation, tenant permission, infrastructure or deployment is approved.
+**Status:** Accepted initial-PoC architecture baseline; no implementation, tenant permission, infrastructure or deployment is authorized.
 
 **Date:** 2026-10-31
 
@@ -112,7 +112,7 @@ Initial reviews/static policy reject App Service/Plan, ACR, Functions, Container
 
 ## Risks, verification and backlog
 
-Risks include Docker-host/root access to volumes/secrets, unsafe localhost OIDC shortcuts, SQLite corruption/lock/disk loss, debugger/log disclosure, independently unauthorized test-tenant mutation, vulnerable dependencies/images, mocks drifting from Microsoft services, exportable Exchange keys and assuming image portability includes data/identity/secrets.
+Risks include Docker-host/root access to volumes/secrets, unsafe localhost OIDC shortcuts, SQLite corruption/lock/disk loss, debugger/log disclosure, independently unauthorized test-tenant mutation, vulnerable dependencies/images, mocks drifting from Microsoft services, possible key export during approved certificate transfer/future Key Vault use, and assuming image portability includes data/identity/secrets.
 
 Required checks cover deterministic image build, non-root/minimal runtime, SBOM/vulnerability threshold, hardened Compose assertions, health/restart/shutdown, SQLite migrations/locks/disk/corruption/reset, exact OIDC callbacks and denial cases, offline retry/partial-failure mocks, secret/log canaries, no PoC Terraform resource and unchanged ADR-016 workflow.
 

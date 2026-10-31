@@ -10,7 +10,7 @@
 - It is distinct from the interactive PlaceHub app, its runtime identity and the accepted ADR-016 Terraform delivery identity. None may impersonate or own another by default.
 - Exchange Online PowerShell (ExchangeOnlineManagement) is the supported management interface for Equipment Mailbox creation and booking-policy administration. EWS and EWS Managed API are prohibited.
 - Microsoft Graph remains the interface for supported availability and ordinary reservation operations. Provisioning PowerShell is never used for routine booking.
-- The proposed F1 App Service is not an approved or sufficient privileged execution boundary. The worker host, operating system, module/runtime versions, isolation and cost remain unresolved.
+- The accepted initial PoC is local Docker, but the privileged worker is outside the web container. A hardened local Windows process is the first proof target; its exact service account/module configuration remains an ADR-015 gate.
 - Commands and effective RBAC entries vary by tenant and module version. Exact roles, parameters and scoping behavior must be discovered read-only and then proven in a separately approved test tenant.
 - New mailbox creation presents a fundamental scope limitation: the target object does not exist before `New-Mailbox`, so a recipient filter or group membership cannot reliably constrain creation to the future object. No claim of complete resource-scoped creation is made.
 
@@ -24,7 +24,7 @@ Connect-ExchangeOnline -AppId <app-id> -Certificate <X509Certificate2> -Organiza
 
 `-Certificate` is cross-platform and is appropriate for a certificate fetched remotely. `-CertificateThumbprint` is Windows-only and requires a certificate-store installation, so it is not the portable worker contract. Module 3.10.0 and later requires PowerShell 7.6/.NET 10; pin and test an exact supported module version rather than floating `latest`.
 
-Microsoft's app-only guidance states that CNG certificates are unsupported for this Exchange authentication path. Use an RSA certificate whose private key is generated with a legacy CSP provider and is exportable. For Windows enrollment the proposed key specification is `AT_KEYEXCHANGE`, with a reviewed CSP such as `Microsoft Enhanced RSA and AES Cryptographic Provider`; never accept a CNG/KSP provider merely because modern Windows selects it by default. The test gate must inspect the actual key implementation/provider and complete a live login in the test tenant.
+Microsoft's app-only guidance states that CNG certificates are unsupported for this Exchange authentication path. Use an RSA certificate whose private key is generated with a legacy CSP provider. For Windows enrollment the proposed key specification is `AT_KEYEXCHANGE`, with a reviewed CSP such as `Microsoft Enhanced RSA and AES Cryptographic Provider`. A local certificate-store key may remain non-exportable at runtime; exportability is needed only if the approved enrollment/transfer path produces a PFX or a future Key Vault worker retrieves it. The test gate inspects the provider and completes a live test-tenant login.
 
 The Entra application receives only the Office 365 Exchange Online application role `Exchange.ManageAsApp`, resource application ID `00000002-0000-0ff1-ce00-000000000000`, role ID `dc50a0fb-09a3-484d-be87-e023b12c6440`, after explicit admin-consent approval. It receives no Microsoft Graph permission unless a separate Graph use case is approved. Exchange RBAC still determines permitted cmdlets/parameters and recipient scope.
 
@@ -46,7 +46,7 @@ Certificate profile proposed for test validation:
 - CSP-backed private key with `AT_KEYEXCHANGE`; not CNG/KSP, EC or HSM-only.
 - Subject/SAN contains no secret and identifies application/environment; distinct key pair per environment.
 - Short, policy-approved lifetime (target at most 12 months), explicit `notBefore`/`notAfter`, and certificate thumbprint recorded as non-secret inventory metadata.
-- Private key exportable because Key Vault-to-`X509Certificate2` loading requires it. Exportability is a compatibility concession, not a preferred cryptographic property.
+- Local Windows-store private key non-exportable where enrollment/rotation permits; exportable only for an approved PFX transfer or future Key-Vault-to-`X509Certificate2` path.
 - Public `.cer` uploaded to the Entra application. PFX/private key exists only in the approved certificate store/Key Vault and worker memory.
 
 The detailed rotation and emergency procedure is in [Exchange certificate lifecycle runbook](exchange-certificate-lifecycle-runbook.md).
@@ -147,7 +147,7 @@ Stop implementation until a host passes a clean-room proof using the selected OS
 
 ## H. ADR impact and approval gates
 
-No accepted-decision conflict was found. ADR-016 remains unchanged: it does not approve Key Vault, a worker, Entra management, RBAC, consent or Exchange operations. Terraform may later describe an approved Key Vault/worker shell, but must not read certificate contents, grant Graph/Exchange admin consent, execute Exchange cmdlets or reuse the provisioning identity. Plan/state must never contain PFX data.
+No accepted-decision conflict was found. Amended ADR-016 permits in-boundary create/update but does not approve Key Vault, an Exchange worker, consent, Exchange RBAC or certificate access. Terraform may later describe an approved Key Vault/worker shell, but must not read certificate contents, execute Exchange cmdlets or reuse the provisioning identity. Deletion/access removal remains destructive, and plan/state must never contain PFX data.
 
 ADR-004, ADR-006, ADR-007, ADR-009, ADR-012, ADR-013 and ADR-015 remain proposed. Their refinements are supporting design, not approval.
 
@@ -158,7 +158,7 @@ Required approvals before implementation:
 3. Exact ExchangeOnlineManagement and PowerShell versions, commands, parameters, parent/custom roles and resource-scope filter proven in the test tenant.
 4. `Exchange.ManageAsApp` application permission and admin consent.
 5. Worker host, network, patching, administrator boundary, runtime identity and operational cost.
-6. CSP-backed exportable certificate profile, issuer, lifetime, owners, Key Vault/local-store design and in-memory extraction risk.
+6. CSP-backed certificate profile, issuer, lifetime, owners, non-exportable local-store path, optional exportable transfer/Key Vault path and in-memory extraction risk.
 7. Key Vault cost, Azure RBAC assignments, purge retention, monitoring destination and environment separation—or approval of local test store only.
 8. Request approval, audit retention, incident response, certificate revocation and reconciliation procedures.
 9. Any Terraform management of Azure/Entra objects under ADR-016's separate gate.

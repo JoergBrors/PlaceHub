@@ -1,11 +1,12 @@
 # ADR-002: Frontend Technology and UI Strategy
 
-- **Status:** Proposed (nicht genehmigt)
+- **Status:** Accepted
 - **Priority:** P0
 - **Date:** 2026-10-31
 - **Project:** PlaceHub – Workplace & Resource Management
-- **Decision owner:** Noch festzulegen
-- **Governance:** New ADR Required; vor Annahme bestehende Repository-ADRs prüfen
+- **Approval date:** 2026-10-31
+- **Decision authority:** Project Owner approval
+- **Governance:** Accepted for server-side Blazor in the initial local PoC
 
 ## Context
 Office Management benötigt verständliche Verwaltungsformulare, Übersichten und interaktive Buchungsprozesse, nicht zwingend einen separaten Frontend-Stack.
@@ -13,7 +14,7 @@ Office Management benötigt verständliche Verwaltungsformulare, Übersichten un
 ## Problem
 Welche dauerhafte Architekturentscheidung wird für **Frontend Technology and UI Strategy** benötigt, ohne die Microsoft-365-Verantwortlichkeiten, Sicherheit oder Einfachheit des Systems zu gefährden?
 
-## Proposed Decision
+## Decision
 Blazor Web App, serverseitige Interaktivität, serverseitige Microsoft-365-Zugriffe; alternative Rendering-Modi nur nach Bedarfsnachweis.
 
 ## Alternatives Considered
@@ -34,7 +35,7 @@ ADR-001, ADR-003, ADR-009.
 ## Validation / Proof of Concept
 PoC für Kalender, große Tabellen, Verbindungsabbrüche, Barrierefreiheit und Lastverhalten.
 
-## Proposed identity refinement (not approved)
+## Accepted identity and local scope
 Für die vorgeschlagene serverseitige Blazor-Web-App genügt eine einzelne vertrauliche Web-Registrierung. Eine separate Backend-Registrierung wird erst bei unabhängig gehosteter UI/API mit eigener Audience vorgeschlagen. Details und Freigabesperren stehen in `../entra-application-permission-architecture.md`.
 
 Der initiale Blazor-PoC läuft im lokalen Linux-Webcontainer und verwendet eine exakt registrierte feste HTTPS-Localhost-Callback-URI. Rendering, serverseitige Tokenhaltung und Autorisierung dürfen keine App-Service-Abhängigkeit erhalten.
@@ -46,7 +47,7 @@ Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Des
 - Gibt es bereits akzeptierte ADRs oder technische Vorgaben im Repository, die dieser Entscheidung widersprechen?
 - Sind relevante Microsoft-365-Funktionen, API-Versionen, Berechtigungen und Lizenzbedingungen für den vorgesehenen Tenant geprüft?
 - Ist der vorgeschlagene Umfang für das MVP angemessen?
-- **Approval gate:** Entscheidung bleibt bis zur expliziten Architekturfreigabe `Proposed`.
+- Exact Entra changes, Graph consent and any independent frontend/API split require separate approval.
 
 ## References
 - Projektquelle: `PlaceHub_Project_Prompt.md` (vom Nutzer bereitgestellt; Anforderungen, ADR-Index und Zielarchitektur).

@@ -1,15 +1,16 @@
 # ADR-016: GitHub Actions Terraform Delivery
 
-- **Status:** Proposed (not approved)
+- **Status:** Accepted
 - **Priority:** P0
 - **Date:** 2026-10-31
-- **Decision owner:** To be assigned
+- **Approval date:** 2026-10-31
+- **Decision authority:** Project Owner approval
 
 ## Context
 
 PlaceHub needs reproducible Azure and Microsoft Entra provisioning without long-lived CI credentials. ADR-004, ADR-009 and ADR-015 require separate identities and least privilege; ADR-013 leaves the application hosting target open.
 
-## Proposed decision
+## Decision
 
 After a one-time, explicitly confirmed local PowerShell 7 bootstrap, run Terraform exclusively in a manually dispatched GitHub Actions workflow. Authenticate with an environment-bound GitHub OIDC subject and Microsoft Entra workload identity federation. Store state in a private Azure Blob container using Entra data-plane authorization. Keep the local privileged bootstrap identity, GitHub deployment identity, PlaceHub interactive identity and any Microsoft 365 provisioning identity separate.
 
@@ -39,11 +40,14 @@ The workflow must bind the selected GitHub Environment to its environment-scoped
 
 ## Approval gates
 
-1. Accept or reject GitHub Actions as the exclusive post-bootstrap Terraform runner.
-2. Approve the workload resource-group Contributor scope.
-3. Decide whether Terraform will manage Entra applications and, if so, approve a tested Graph permission/ownership model.
+Acceptance of this ADR approves the delivery architecture only. It does **not** approve a live bootstrap, a deployment, or any of the permissions below. These remain separate operational/security decisions:
+
+1. Approve the workload resource-group Contributor assignment before running bootstrap in mutation mode.
+2. Decide whether Terraform will manage Entra applications and, if so, approve a tested Graph permission/ownership model.
+3. Grant Microsoft Graph admin consent only through a separate, explicitly approved privileged process.
 4. Confirm GitHub plan/features support required reviewers, or approve an alternative control.
-5. Approve a protected plan-transfer design before splitting plan and apply across jobs or runs.
+5. Explicitly authorize each production bootstrap and deployment according to the operating change process.
+6. Approve a protected plan-transfer and integrity design before introducing any post-plan approval workflow split across jobs or runs.
 
 ## References
 

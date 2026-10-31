@@ -4,17 +4,19 @@ param(
     [string]$EnvFile = (Join-Path $PSScriptRoot '..\.env'), [string]$TenantId, [string]$SubscriptionId,
     [string]$Repository, [string]$Environment, [string]$Location, [string]$StateResourceGroup,
     [string]$StateStorageAccount, [string]$StateContainer, [string]$StateKey, [string]$DeploymentAppName,
-    [string]$ConfirmTarget, [switch]$DryRun, [switch]$SkipGitHubConfiguration
+    [string]$ConfirmTarget, [switch]$DryRun, [switch]$SkipGitHubConfiguration,
+    [switch]$ApproveWorkloadContributor, [switch]$ApproveOidcCredentialRepair
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = $VerbosePreference = $DebugPreference = 'SilentlyContinue'
-$script:AllowedFailureCategories = @('PREREQUISITE_FAILED','AUTHENTICATION_FAILED','AUTHORIZATION_FAILED','CONFIGURATION_INVALID','RESOURCE_CONFLICT','OIDC_VALIDATION_FAILED')
+if (Test-Path Variable:PSNativeCommandUseErrorActionPreference) { $PSNativeCommandUseErrorActionPreference = $false }
+$script:AllowedFailureCategories = @('PREREQUISITE_FAILED','AUTHENTICATION_FAILED','AUTHORIZATION_FAILED','REQUEST_INVALID','CONFIGURATION_INVALID','RESOURCE_CONFLICT','OIDC_VALIDATION_FAILED')
 
 function Stop-Safe {
     param(
-        [Parameter(Mandatory)][ValidateSet('PREREQUISITE_FAILED','AUTHENTICATION_FAILED','AUTHORIZATION_FAILED','CONFIGURATION_INVALID','RESOURCE_CONFLICT','OIDC_VALIDATION_FAILED')][string]$Category,
+        [Parameter(Mandatory)][ValidateSet('PREREQUISITE_FAILED','AUTHENTICATION_FAILED','AUTHORIZATION_FAILED','REQUEST_INVALID','CONFIGURATION_INVALID','RESOURCE_CONFLICT','OIDC_VALIDATION_FAILED')][string]$Category,
         [int]$NativeExitCode = -1
     )
     $exception = [InvalidOperationException]::new('Bootstrap operation failed.')
@@ -24,7 +26,7 @@ function Stop-Safe {
 }
 
 function Write-SafeStatus {
-    param([Parameter(Mandatory)][ValidateSet('PREREQUISITES_OK','AUTHENTICATION_OK','TARGET_CONFIRMED','DISCOVERY_OK','PREVIEW_COMPLETE','BOOTSTRAP_COMPLETE','GRAPH_PERMISSIONS_UNCHANGED')][string]$Status)
+    param([Parameter(Mandatory)][ValidateSet('PREREQUISITES_OK','AUTHENTICATION_OK','TARGET_CONFIRMED','DISCOVERY_OK','OIDC_REPAIR_REQUIRED','OIDC_REPAIRED','PREVIEW_COMPLETE','BOOTSTRAP_COMPLETE','GRAPH_PERMISSIONS_UNCHANGED')][string]$Status)
     [Console]::Out.WriteLine($Status)
 }
 
@@ -54,22 +56,80 @@ function Assert-Command([string]$Name, [switch]$Optional) {
     if (-not (Get-Command $Name -ErrorAction SilentlyContinue) -and -not $Optional) { Stop-Safe 'PREREQUISITE_FAILED' }
 }
 
+function New-ArmResourceUrl {
+    param(
+        [Parameter(Mandatory)][string]$ResourceId,
+        [Parameter(Mandatory)][string]$ApiVersion
+    )
+    if ($ResourceId -notmatch '^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/' -or $ApiVersion -notmatch '^\d{4}-\d{2}-\d{2}(-preview)?$') { Stop-Safe 'CONFIGURATION_INVALID' }
+    $url = "https://management.azure.com${ResourceId}?api-version=$ApiVersion"
+    $parsed = $null
+    if (-not [uri]::TryCreate($url, [UriKind]::Absolute, [ref]$parsed) -or $parsed.Scheme -ne 'https' -or $parsed.Host -ne 'management.azure.com' -or $parsed.Query -ne "?api-version=$ApiVersion") { Stop-Safe 'CONFIGURATION_INVALID' }
+    return $url
+}
+
+function New-GitHubEnvironmentSubject {
+    param(
+        [Parameter(Mandatory)][string]$Repository,
+        [Parameter(Mandatory)][string]$Environment,
+        [switch]$UseImmutableSubject,
+        [string]$OwnerId,
+        [string]$RepositoryId
+    )
+    $repositoryMatch = [regex]::Match($Repository, '^(?<owner>[^/\s]+)/(?<name>[^/\s]+)$')
+    if (-not $repositoryMatch.Success -or $Environment -notmatch '^[A-Za-z0-9_.-]+$') { Stop-Safe 'CONFIGURATION_INVALID' }
+    if ($UseImmutableSubject) {
+        if ($OwnerId -notmatch '^\d+$' -or $RepositoryId -notmatch '^\d+$') { Stop-Safe 'OIDC_VALIDATION_FAILED' }
+        return 'repo:{0}@{1}/{2}@{3}:environment:{4}' -f $repositoryMatch.Groups['owner'].Value, $OwnerId, $repositoryMatch.Groups['name'].Value, $RepositoryId, $Environment
+    }
+    # Do not use "repo:$Repository:environment:$Environment": PowerShell parses
+    # $Repository:environment as a scope-qualified variable reference.
+    return 'repo:{0}:environment:{1}' -f $Repository, $Environment
+}
+
+function Test-FederatedCredentialExact {
+    param(
+        [Parameter(Mandatory)][object]$Credential,
+        [Parameter(Mandatory)][string]$Issuer,
+        [Parameter(Mandatory)][string]$Subject,
+        [Parameter(Mandatory)][string]$Audience
+    )
+    $audiences = @($Credential.audiences)
+    return ($Credential.issuer -ceq $Issuer -and $Credential.subject -ceq $Subject -and $audiences.Count -eq 1 -and $audiences[0] -ceq $Audience)
+}
+
+function Resolve-AzureFailureCategory {
+    param([string]$DefaultCategory, [object[]]$NativeOutput)
+    $text = ($NativeOutput -join "`n")
+    if ($text -match '(?i)\bHTTP[/0-9. ]*400\b|\bBadRequest\b|\bRequestIsNotValidJson\b') { return 'REQUEST_INVALID' }
+    if ($text -match '(?i)\bHTTP[/0-9. ]*401\b|\bUnauthorized\b') { return 'AUTHENTICATION_FAILED' }
+    if ($text -match '(?i)\bHTTP[/0-9. ]*403\b|\bForbidden\b') { return 'AUTHORIZATION_FAILED' }
+    return $DefaultCategory
+}
+
 function Invoke-SafeCommand {
     param(
         [Parameter(Mandatory)][string]$File, [Parameter(Mandatory)][string[]]$Arguments,
-        [Parameter(Mandatory)][ValidateSet('PREREQUISITE_FAILED','AUTHENTICATION_FAILED','AUTHORIZATION_FAILED','CONFIGURATION_INVALID','RESOURCE_CONFLICT','OIDC_VALIDATION_FAILED')][string]$FailureCategory,
-        [ValidateSet('None','Text','Json')][string]$OutputMode = 'None', [switch]$Mutating, [switch]$AllowFailure
+        [Parameter(Mandatory)][ValidateSet('PREREQUISITE_FAILED','AUTHENTICATION_FAILED','AUTHORIZATION_FAILED','REQUEST_INVALID','CONFIGURATION_INVALID','RESOURCE_CONFLICT','OIDC_VALIDATION_FAILED')][string]$FailureCategory,
+        [ValidateSet('None','Text','Json')][string]$OutputMode = 'None', [switch]$Mutating, [switch]$AllowFailure,
+        [switch]$ClassifyAzureHttp
     )
     if ($Mutating -and ($DryRun -or -not $PSCmdlet.ShouldProcess('bootstrap resource', 'perform approved mutation'))) {
         return [pscustomobject]@{ Executed=$false; ExitCode=0; Succeeded=$true; Data=$null }
     }
     # Native output stays in memory and is never emitted or included in an exception.
-    $nativeOutput = & $File @Arguments 2>&1
-    $nativeExitCode = $LASTEXITCODE
+    try {
+        $nativeOutput = & $File @Arguments 2>&1
+        $nativeExitCode = $LASTEXITCODE
+    } catch {
+        $nativeOutput = $null
+        Stop-Safe $FailureCategory $LASTEXITCODE
+    }
     if ($nativeExitCode -ne 0) {
+        $classifiedCategory = if ($ClassifyAzureHttp) { Resolve-AzureFailureCategory $FailureCategory @($nativeOutput) } else { $FailureCategory }
         $nativeOutput = $null
         if ($AllowFailure) { return [pscustomobject]@{ Executed=$true; ExitCode=$nativeExitCode; Succeeded=$false; Data=$null } }
-        Stop-Safe $FailureCategory $nativeExitCode
+        Stop-Safe $classifiedCategory $nativeExitCode
     }
     $data = $null
     if ($OutputMode -eq 'Text') { $data = ($nativeOutput -join "`n") }
@@ -88,7 +148,34 @@ function Invoke-AzJson {
 
 function Invoke-Mutation {
     param([string]$File, [string[]]$Arguments, [string]$FailureCategory, [ValidateSet('None','Json')][string]$OutputMode = 'None')
-    Invoke-SafeCommand $File $Arguments $FailureCategory $OutputMode -Mutating
+    Invoke-SafeCommand $File $Arguments $FailureCategory $OutputMode -Mutating -ClassifyAzureHttp:($File -eq 'az')
+}
+
+function Invoke-AzRestJsonMutation {
+    param(
+        [Parameter(Mandatory)][ValidateSet('put','post','patch')][string]$Method,
+        [Parameter(Mandatory)][string]$Url,
+        [Parameter(Mandatory)][string]$JsonBody,
+        [string[]]$Headers,
+        [string]$FailureCategory = 'AUTHORIZATION_FAILED',
+        [Parameter(DontShow)][string]$AzureCli = 'az'
+    )
+    try { $null = $JsonBody | ConvertFrom-Json } catch { Stop-Safe 'CONFIGURATION_INVALID' }
+    $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ("placehub-azrest-" + [guid]::NewGuid().ToString('N'))
+    $bodyFile = Join-Path $tempRoot 'body.json'
+    try {
+        $null = [IO.Directory]::CreateDirectory($tempRoot)
+        [IO.File]::WriteAllText($bodyFile, $JsonBody, [Text.UTF8Encoding]::new($false))
+        if (-not $IsWindows) { $null = & chmod 600 -- $bodyFile 2>$null }
+        $arguments = @('rest','--method',$Method,'--url',$Url,'--body',"@$bodyFile")
+        if ($Headers) { $arguments += @('--headers') + $Headers }
+        $arguments += @('--output','none','--only-show-errors')
+        return Invoke-SafeCommand $AzureCli $arguments $FailureCategory 'None' -Mutating -ClassifyAzureHttp
+    }
+    finally {
+        if (Test-Path -LiteralPath $bodyFile) { Remove-Item -LiteralPath $bodyFile -Force -ErrorAction SilentlyContinue }
+        if (Test-Path -LiteralPath $tempRoot) { Remove-Item -LiteralPath $tempRoot -Force -ErrorAction SilentlyContinue }
+    }
 }
 
 try {
@@ -112,14 +199,22 @@ try {
     $subscription = Invoke-AzJson @('account','show','--subscription',$SubscriptionId) 'AUTHORIZATION_FAILED'
     if ($subscription.Data.tenantId -ne $TenantId) { Stop-Safe 'AUTHORIZATION_FAILED' }
     $null = Invoke-SafeCommand 'gh' @('auth','status') 'AUTHENTICATION_FAILED'
-    $repo = Invoke-SafeCommand 'gh' @('repo','view',$Repository,'--json','nameWithOwner','--jq','.nameWithOwner') 'AUTHORIZATION_FAILED' 'Text'
-    if ($repo.Data.Trim().ToLowerInvariant() -ne $Repository.ToLowerInvariant()) { Stop-Safe 'AUTHORIZATION_FAILED' }
+    $githubApiHeaders = @('-H','Accept: application/vnd.github+json','-H','X-GitHub-Api-Version: 2026-03-10')
+    $repo = Invoke-SafeCommand 'gh' (@('api',"repos/$Repository") + $githubApiHeaders) 'AUTHORIZATION_FAILED' 'Json'
+    if ([string]$repo.Data.full_name -ine $Repository) { Stop-Safe 'AUTHORIZATION_FAILED' }
+    $oidcSettings = Invoke-SafeCommand 'gh' (@('api',"repos/$Repository/actions/oidc/customization/sub") + $githubApiHeaders) 'AUTHORIZATION_FAILED' 'Json'
+    if (-not $oidcSettings.Data.use_default) {
+        $claimKeys = @($oidcSettings.Data.include_claim_keys)
+        if ($claimKeys.Count -ne 2 -or $claimKeys[0] -cne 'repo' -or $claimKeys[1] -cne 'context') { Stop-Safe 'OIDC_VALIDATION_FAILED' }
+    }
     Write-SafeStatus 'AUTHENTICATION_OK'
 
     $subscriptionScope = "/subscriptions/$SubscriptionId"; $stateRgScope = "$subscriptionScope/resourceGroups/$StateResourceGroup"
     $storageScope = "$stateRgScope/providers/Microsoft.Storage/storageAccounts/$StateStorageAccount"; $containerScope = "$storageScope/blobServices/default/containers/$StateContainer"
     $workloadRg = "rg-placehub-$($Environment.ToLowerInvariant())"; $workloadScope = "$subscriptionScope/resourceGroups/$workloadRg"
-    $expectedIssuer = 'https://token.actions.githubusercontent.com'; $expectedSubject = "repo:$Repository:environment:$Environment"; $expectedAudience = 'api://AzureADTokenExchange'
+    $expectedIssuer = 'https://token.actions.githubusercontent.com'
+    $expectedSubject = New-GitHubEnvironmentSubject -Repository ([string]$repo.Data.full_name) -Environment $Environment -UseImmutableSubject:([bool]$oidcSettings.Data.use_immutable_subject) -OwnerId ([string]$repo.Data.owner.id) -RepositoryId ([string]$repo.Data.id)
+    $expectedAudience = 'api://AzureADTokenExchange'
     $ficName = "github-$($Environment.ToLowerInvariant() -replace '[^a-z0-9-]','-')"
 
     $rg = Invoke-AzJson @('group','show','--name',$StateResourceGroup,'--subscription',$SubscriptionId) 'AUTHORIZATION_FAILED' -AllowFailure
@@ -128,27 +223,33 @@ try {
     $apps = @((Invoke-AzJson @('ad','app','list','--display-name',$DeploymentAppName,'--filter',"displayName eq '$DeploymentAppName'") 'AUTHORIZATION_FAILED').Data)
     if ($apps.Count -gt 1) { Stop-Safe 'RESOURCE_CONFLICT' }
     $changesRequired = -not ($rg.Succeeded -and $storage.Succeeded -and $workload.Succeeded)
-    $app = if ($apps.Count -eq 1) { $apps[0] } else { $null }; $credentialExists = $false
+    $app = if ($apps.Count -eq 1) { $apps[0] } else { $null }; $credentialExists = $false; $credentialRequiresRepair = $false; $existingCredential = $null
     if ($app) {
         $ficUrl = "https://graph.microsoft.com/v1.0/applications/$($app.id)/federatedIdentityCredentials"
         $named = @((Invoke-AzJson @('rest','--method','get','--url',$ficUrl) 'AUTHORIZATION_FAILED').Data.value | Where-Object name -eq $ficName)
         if ($named.Count -gt 1) { Stop-Safe 'RESOURCE_CONFLICT' }
         if ($named.Count -eq 1) {
-            $audiences = @($named[0].audiences)
-            if ($named[0].issuer -cne $expectedIssuer -or $named[0].subject -cne $expectedSubject -or $audiences.Count -ne 1 -or $audiences[0] -cne $expectedAudience) { Stop-Safe 'OIDC_VALIDATION_FAILED' }
-            $credentialExists = $true
+            $existingCredential = $named[0]
+            if (Test-FederatedCredentialExact $existingCredential $expectedIssuer $expectedSubject $expectedAudience) { $credentialExists = $true }
+            else { $credentialRequiresRepair = $true; $changesRequired = $true }
         } else { $changesRequired = $true }
     } else { $changesRequired = $true }
     Write-SafeStatus 'DISCOVERY_OK'
+    if ($credentialRequiresRepair) { Write-SafeStatus 'OIDC_REPAIR_REQUIRED' }
 
     if ($DryRun -or [bool]$WhatIfPreference) {
         Write-SafeStatus 'PREVIEW_COMPLETE'; Write-SafeStatus 'GRAPH_PERMISSIONS_UNCHANGED'; return
     }
 
+    # ADR-016 acceptance does not approve this RBAC grant. Mutation mode requires a separate explicit authorization.
+    if (-not $ApproveWorkloadContributor) { Stop-Safe 'AUTHORIZATION_FAILED' }
+    if ($credentialRequiresRepair -and -not $ApproveOidcCredentialRepair) { Stop-Safe 'OIDC_VALIDATION_FAILED' }
+
     if (-not $rg.Succeeded) { if (-not (Invoke-Mutation 'az' @('group','create','--name',$StateResourceGroup,'--location',$Location,'--subscription',$SubscriptionId,'--output','none','--only-show-errors') 'AUTHORIZATION_FAILED').Executed) { Stop-Safe 'CONFIGURATION_INVALID' } }
     if (-not $storage.Succeeded) { if (-not (Invoke-Mutation 'az' @('storage','account','create','--name',$StateStorageAccount,'--resource-group',$StateResourceGroup,'--location',$Location,'--sku','Standard_LRS','--kind','StorageV2','--min-tls-version','TLS1_2','--allow-blob-public-access','false','--allow-shared-key-access','false','--https-only','true','--subscription',$SubscriptionId,'--output','none','--only-show-errors') 'AUTHORIZATION_FAILED').Executed) { Stop-Safe 'CONFIGURATION_INVALID' } }
-    $containerApi = "https://management.azure.com$containerScope?api-version=2023-05-01"
-    $null = Invoke-Mutation 'az' @('rest','--method','put','--url',$containerApi,'--body','{"properties":{"publicAccess":"None"}}','--output','none','--only-show-errors') 'AUTHORIZATION_FAILED'
+    $containerApi = New-ArmResourceUrl -ResourceId $containerScope -ApiVersion '2023-05-01'
+    $containerBody = '{"properties":{"publicAccess":"None"}}'
+    $null = Invoke-AzRestJsonMutation -Method put -Url $containerApi -JsonBody $containerBody
     $null = Invoke-Mutation 'az' @('storage','account','blob-service-properties','update','--account-name',$StateStorageAccount,'--resource-group',$StateResourceGroup,'--enable-versioning','true','--enable-delete-retention','true','--delete-retention-days','30','--enable-container-delete-retention','true','--container-delete-retention-days','30','--subscription',$SubscriptionId,'--output','none','--only-show-errors') 'AUTHORIZATION_FAILED'
 
     if (-not $app) {
@@ -163,12 +264,20 @@ try {
         if (-not $createdSp.Executed -or -not $createdSp.Data) { Stop-Safe 'CONFIGURATION_INVALID' }; $servicePrincipal = $createdSp.Data
     } else { $servicePrincipal = $servicePrincipals[0] }
 
-    if (-not $credentialExists) {
-        $ficBody = @{name=$ficName;issuer=$expectedIssuer;subject=$expectedSubject;audiences=@($expectedAudience);description='PlaceHub Terraform GitHub environment trust'} | ConvertTo-Json -Compress
-        $ficUrl = "https://graph.microsoft.com/v1.0/applications/$appObjectId/federatedIdentityCredentials"
-        $null = Invoke-Mutation 'az' @('rest','--method','post','--url',$ficUrl,'--body',$ficBody,'--headers','Content-Type=application/json','--output','none','--only-show-errors') 'AUTHORIZATION_FAILED'
+    $ficBody = @{name=$ficName;issuer=$expectedIssuer;subject=$expectedSubject;audiences=@($expectedAudience);description='PlaceHub Terraform GitHub environment trust'} | ConvertTo-Json -Compress
+    $ficUrl = "https://graph.microsoft.com/v1.0/applications/$appObjectId/federatedIdentityCredentials"
+    if ($credentialRequiresRepair) {
+        if (-not $existingCredential.id) { Stop-Safe 'OIDC_VALIDATION_FAILED' }
+        $null = Invoke-AzRestJsonMutation -Method patch -Url "$ficUrl/$($existingCredential.id)" -JsonBody $ficBody -Headers 'Content-Type=application/json'
+        $credentialExists = $true
+    }
+    elseif (-not $credentialExists) {
+        $null = Invoke-AzRestJsonMutation -Method post -Url $ficUrl -JsonBody $ficBody -Headers 'Content-Type=application/json'
+    }
+    if ($credentialRequiresRepair -or -not $credentialExists) {
         $verified = @((Invoke-AzJson @('rest','--method','get','--url',$ficUrl) 'OIDC_VALIDATION_FAILED').Data.value | Where-Object name -eq $ficName)
-        if ($verified.Count -ne 1 -or $verified[0].issuer -cne $expectedIssuer -or $verified[0].subject -cne $expectedSubject -or @($verified[0].audiences).Count -ne 1 -or @($verified[0].audiences)[0] -cne $expectedAudience) { Stop-Safe 'OIDC_VALIDATION_FAILED' }
+        if ($verified.Count -ne 1 -or -not (Test-FederatedCredentialExact $verified[0] $expectedIssuer $expectedSubject $expectedAudience)) { Stop-Safe 'OIDC_VALIDATION_FAILED' }
+        if ($credentialRequiresRepair) { Write-SafeStatus 'OIDC_REPAIRED' }
     }
 
     if (-not $workload.Succeeded) { $null = Invoke-Mutation 'az' @('group','create','--name',$workloadRg,'--location',$Location,'--subscription',$SubscriptionId,'--output','none','--only-show-errors') 'AUTHORIZATION_FAILED' }

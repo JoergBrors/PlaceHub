@@ -1,6 +1,6 @@
 # PlaceHub – Architecture Decision Record Index
 
-All ADRs below are **Proposed**, not Accepted. This is a starting baseline based on the uploaded project prompt and the preceding architecture discussion. Confirm existing repository ADRs before adoption.
+ADR status is recorded individually. ADR-016 is accepted by Project Owner approval dated 2026-10-31. ADR-001 through ADR-015 remain proposed and are not implementation mandates.
 
 | ADR | Title | Priority | Status |
 |---|---|---|---|
@@ -19,11 +19,12 @@ All ADRs below are **Proposed**, not Accepted. This is a starting baseline based
 | [013](ADR-013-deployment-and-hosting-strategy.md) | Deployment and Hosting Strategy | P1 | Proposed |
 | [014](ADR-014-testing-strategy.md) | Testing Strategy | P1 | Proposed |
 | [015](ADR-015-administrative-provisioning-and-privileged-operations.md) | Administrative Provisioning and Privileged Operations | P0 | Proposed |
-| [016](ADR-016-github-actions-terraform-delivery.md) | GitHub Actions Terraform Delivery | P0 | Proposed |
+| [016](ADR-016-github-actions-terraform-delivery.md) | GitHub Actions Terraform Delivery | P0 | Accepted |
 
 ## Review order
 1. Application architecture: 001, 002, 003.
 2. Microsoft 365 integration and permissions: 004, 005, 009, 015.
 3. Domain and operations: 006, 007, 008, 010–014.
+4. Delivery architecture: 016 (Accepted; its permission and production approval gates remain open).
 
-These are drafts; do not treat them as accepted implementation mandates.
+Only ADR-016 is accepted. Do not infer acceptance of any other ADR from its dependencies or from supporting implementation work.

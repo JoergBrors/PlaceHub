@@ -215,9 +215,18 @@ try {
             # Pure creates legitimately contain provider-computed output fields.
             # Policy-bearing inputs are never on these explicit allowlists.
             $allowedComputedRoots = if ($type -eq 'azuread_application') {
-                @('client_id','disabled_by_microsoft','logo_url','object_id','publisher_domain')
+                @(
+                    'app_role_ids','client_id','disabled_by_microsoft','feature_tags',
+                    'logo_url','oauth2_permission_scope_ids','object_id','publisher_domain',
+                    'tags','template_id'
+                )
             } else {
-                @('application_tenant_id','client_id','display_name','object_id','service_principal_names','type')
+                @(
+                    'app_role_ids','app_roles','application_tenant_id','client_id','display_name',
+                    'feature_tags','features','homepage_url','logout_url','oauth2_permission_scope_ids',
+                    'oauth2_permission_scopes','object_id','redirect_uris','saml_metadata_url',
+                    'service_principal_names','sign_in_audience','tags','type'
+                )
             }
             foreach ($unknownRoot in @(Get-UnknownRootNames $afterUnknown)) {
                 if ($unknownRoot -notin $allowedComputedRoots) { throw 'unknown value' }

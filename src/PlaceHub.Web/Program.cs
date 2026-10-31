@@ -1,8 +1,13 @@
 using PlaceHub.Core;
 using PlaceHub.Web;
 using PlaceHub.Web.Components;
+using Microsoft.AspNetCore.Hosting.StaticWebAssets;
 
 var builder = WebApplication.CreateBuilder(args);
+// Local operators intentionally run the offline POC with Production settings from
+// build output. Load the generated manifest explicitly so fingerprinted CSS and
+// the Blazor framework assets remain available outside Development and Publish.
+StaticWebAssetsLoader.UseStaticWebAssets(builder.Environment, builder.Configuration);
 builder.Logging.ClearProviders();
 builder.Logging.AddSimpleConsole(options =>
 {

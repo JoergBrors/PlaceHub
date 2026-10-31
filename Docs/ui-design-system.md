@@ -39,6 +39,8 @@ pwsh -NoProfile -File tests/Test-UIStatic.ps1
 dotnet publish src/PlaceHub.Web/PlaceHub.Web.csproj -c Release
 ```
 
+The application explicitly loads its generated Static Web Assets manifest. This supports the local offline convention of running `Production` settings directly from build output as well as normal `dotnet run`. When starting published output directly, still use the publish directory as the working/content root (for example `Set-Location artifacts/ui-publish; dotnet PlaceHub.Web.dll`). The Dockerfile uses `/app` as its `WORKDIR` and follows the same rule.
+
 The global search is visibly disabled because no approved search contract exists. Calendar booking buttons are disabled for non-available states, and available buttons do not claim external confirmation. Notifications are omitted because no notification state exists.
 
 ## Remaining UX gaps

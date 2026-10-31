@@ -16,6 +16,10 @@ The repository includes a local, offline .NET 10 Blazor proof of concept for UI-
 
 The responsive enterprise shell, design tokens, booking calendar and accessibility conventions are documented in [UI design system](Docs/ui-design-system.md).
 
+## VS Code debugging
+
+Open the repository root in VS Code, select **Run and Debug**, then start **PlaceHub Web (Development)** with `F5`. The browser opens the desk-pool page at `http://localhost:5000`. **PlaceHub Web (Production assets)** runs the regression-relevant Production configuration on port `5001`. Build, test and watch tasks are available through **Terminal → Run Task**.
+
 ---
 
 ## 🚀 Why PlaceHub?

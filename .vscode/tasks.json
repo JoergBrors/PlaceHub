@@ -1,0 +1,44 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "placehub: build debug",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "${workspaceFolder}/src/PlaceHub.Web/PlaceHub.Web.csproj", "--configuration", "Debug"],
+      "problemMatcher": "$msCompile",
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "placehub: build release",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "${workspaceFolder}/src/PlaceHub.Web/PlaceHub.Web.csproj", "--configuration", "Release"],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "placehub: test",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["test", "${workspaceFolder}/PlaceHub.slnx"],
+      "problemMatcher": "$msCompile",
+      "group": "test"
+    },
+    {
+      "label": "placehub: watch",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["watch", "--project", "${workspaceFolder}/src/PlaceHub.Web/PlaceHub.Web.csproj", "run"],
+      "options": {
+        "cwd": "${workspaceFolder}/src/PlaceHub.Web",
+        "env": {
+          "ASPNETCORE_ENVIRONMENT": "Development",
+          "ASPNETCORE_URLS": "http://localhost:5000",
+          "PlaceHub__IntegrationMode": "OfflineMock"
+        }
+      },
+      "problemMatcher": "$msCompile",
+      "isBackground": true
+    }
+  ]
+}

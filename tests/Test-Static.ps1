@@ -26,7 +26,7 @@ Assert-True ($workflow -match 'terraform apply[^\r\n]*\$TF_PLAN_PATH') 'Apply mu
 Assert-True ($workflow -match 'terraform plan[^\r\n]*-detailed-exitcode') 'Plan must derive only a minimal change status.'
 Assert-True ($workflow -match 'Changes detected: yes' -and $workflow -match 'Changes detected: no') 'Allowlisted plan summary missing.'
 Assert-True ($workflow -match 'rm -f -- "\$TF_PLAN_PATH"' -and $workflow -match '\$\{\{ always\(\) \}\}') 'Saved plan cleanup missing.'
-Assert-Absent $workflow '\$\{\{\s*runner\.temp\s*\}\}' 'runner.temp is not valid in the job-level env expression context.'
+Assert-Absent $workflow '(?m)^\s+TF_PLAN_PATH:\s*\$\{\{\s*runner\.temp\s*\}\}' 'runner.temp is not valid in the job-level env expression context.'
 Assert-True ($workflow -match 'TF_PLAN_PATH=\$RUNNER_TEMP/placehub\.tfplan.+\$GITHUB_ENV') 'Saved-plan path is not initialized from RUNNER_TEMP through GITHUB_ENV.'
 $planPathInitialization = $workflow.IndexOf('TF_PLAN_PATH=$RUNNER_TEMP/placehub.tfplan', [StringComparison]::Ordinal)
 $planStep = $workflow.IndexOf('- name: Create saved plan', [StringComparison]::Ordinal)

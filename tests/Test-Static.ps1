@@ -53,6 +53,11 @@ foreach ($stepName in @('Initialize ephemeral plan path','Register secondary mas
     Assert-True ($workflow -match "(?s)- name: $escapedStepName\s+.*?working-directory:\s*\$\{\{ runner\.temp \}\}") "Step '$stepName' must start outside the checkout-dependent working directory."
 }
 Assert-True ($workflow -match 'SAFE_SELECTED_ENVIRONMENT.*\$\{\{ inputs.target_environment \}\}' -and $workflow -match 'SAFE_EXPECTED_ENVIRONMENT.*\$\{\{ vars.TF_ENVIRONMENT \}\}') 'Selected environment is not bound to approved configuration.'
+foreach ($maskedName in @('AZURE_CLIENT_ID','AZURE_TENANT_ID','AZURE_SUBSCRIPTION_ID','TF_STATE_RG','TF_STATE_STORAGE','TF_STATE_CONTAINER','TF_STATE_KEY')) {
+    Assert-True ($workflow -match "secrets\.$maskedName") "Workflow does not source $maskedName from an automatically masked Environment secret."
+    Assert-Absent $workflow "vars\.$maskedName" "Workflow still exposes $maskedName through an unmasked GitHub variable."
+}
+Assert-Absent $workflow '(?m)^\s{6}(ARM_CLIENT_ID|ARM_TENANT_ID|ARM_SUBSCRIPTION_ID|TF_VAR_tenant_id|TF_VAR_subscription_id):' 'Sensitive identifiers must not exist in job-level env before masks are active.'
 foreach ($category in @('TERRAFORM_INIT_FAILED','TERRAFORM_VALIDATE_FAILED','TERRAFORM_PLAN_FAILED','TERRAFORM_APPLY_FAILED')) { Assert-True ($workflow.Contains($category)) "Missing failure category $category." }
 
 Assert-Absent $bootstrap '\$Arguments\s*-join|Write-(Host|Output|Verbose|Debug).*\$(Arguments|nativeOutput)|Format-List|Out-String|\.Exception\.Message|\$_\s*\|' 'Bootstrap may render commands, native output, or exceptions.'
@@ -62,6 +67,10 @@ Assert-True ($bootstrap -match 'Test-FederatedCredentialExact.+\$expectedSubject
 Assert-True ($bootstrap -match '\$DryRun\s+-or\s+\[bool\]\$WhatIfPreference' -and $bootstrap -match "Write-SafeStatus 'PREVIEW_COMPLETE'") 'DryRun/WhatIf preview gate missing.'
 Assert-True ($bootstrap.Contains('[switch]$ApproveWorkloadContributor') -and $bootstrap.Contains("if (-not `$ApproveWorkloadContributor) { Stop-Safe 'AUTHORIZATION_FAILED' }")) 'Contributor assignment lacks a separate explicit approval gate.'
 Assert-True ($bootstrap.Contains('[switch]$ApproveOidcCredentialRepair') -and $bootstrap.Contains("if (`$credentialRequiresRepair -and -not `$ApproveOidcCredentialRepair) { Stop-Safe 'OIDC_VALIDATION_FAILED' }")) 'OIDC repair lacks a separate explicit approval gate.'
+Assert-True ($bootstrap.Contains('[switch]$ApproveApplicationReadWriteOwnedByDeclaration') -and $bootstrap.Contains("if (-not `$graphPermissionDeclared -and -not `$ApproveApplicationReadWriteOwnedByDeclaration) { Stop-Safe 'AUTHORIZATION_FAILED' }")) 'Graph permission declaration lacks a separate explicit approval gate.'
+Assert-True ($bootstrap.Contains("`$microsoftGraphAppId = '00000003-0000-0000-c000-000000000000'") -and $bootstrap.Contains("`$applicationReadWriteOwnedById = '18a4783c-866b-4cc7-a460-3d5e5662c884'")) 'Application.ReadWrite.OwnedBy immutable identifiers are missing.'
+Assert-True ($bootstrap -match "permission','add'.+applicationReadWriteOwnedById=Role" -and $bootstrap -match 'Test-ApplicationPermissionDeclaration \$verifiedApp') 'Graph permission declaration is not added and read back exactly.'
+Assert-Absent $bootstrap '(?i)permission.+admin-consent|1bfefb4e-e0b5-418b-a88f-73c46d2cc8e9|06b708a9-e830-4db3-a914-8e69da51d44f' 'Bootstrap must not grant admin consent or declare broad Graph permissions.'
 Assert-True ($bootstrap -match "Invoke-AzRestJsonMutation -Method patch.+existingCredential\.id" -and $bootstrap -notmatch "federatedIdentityCredentials.+-Method post.+credentialRequiresRepair") 'OIDC repair must patch the one discovered credential, not create a duplicate.'
 $inlineFicBody = "'--body'," + '$ficBody'
 Assert-True (-not $bootstrap.Contains("'--body','{") -and -not $bootstrap.Contains($inlineFicBody)) 'Inline JSON remains in an Azure REST invocation.'
@@ -138,7 +147,7 @@ Assert-Absent $entraTerraform '(?i)azuread_(app_role_assignment|application_pass
 Assert-Absent $entraTerraform '(?m)^resource "azurerm_' 'Paid Azure application resources are forbidden.'
 
 # Exercise the command wrapper with synthetic secret-like values. Native stdout/stderr and arguments must not escape on failure.
-$functionNames = @('Stop-Safe','New-ArmResourceUrl','New-GitHubEnvironmentSubject','Test-FederatedCredentialExact','Resolve-AzureFailureCategory','Invoke-SafeCommand','Invoke-AzRestJsonMutation')
+$functionNames = @('Stop-Safe','New-ArmResourceUrl','New-GitHubEnvironmentSubject','Test-FederatedCredentialExact','Test-ApplicationPermissionDeclaration','Resolve-AzureFailureCategory','Invoke-SafeCommand','Invoke-AzRestJsonMutation')
 foreach ($name in $functionNames) {
     $definition = $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true) | Select-Object -First 1
     Assert-True ($null -ne $definition) "Function $name not found."
@@ -164,6 +173,10 @@ $expectedCredential = [pscustomobject]@{issuer='https://token.actions.githubuser
 $brokenCredential = [pscustomobject]@{issuer='https://token.actions.githubusercontent.com';subject=$brokenSubject;audiences=@('api://AzureADTokenExchange')}
 Assert-True (Test-FederatedCredentialExact $expectedCredential $expectedCredential.issuer $mutableSubject $expectedCredential.audiences[0]) 'Exact federated credential was rejected.'
 Assert-True (-not (Test-FederatedCredentialExact $brokenCredential $expectedCredential.issuer $mutableSubject $expectedCredential.audiences[0])) 'Existing repo:development credential was not detected as invalid.'
+$ownedByDeclaration = [pscustomobject]@{requiredResourceAccess=@([pscustomobject]@{resourceAppId='00000003-0000-0000-c000-000000000000';resourceAccess=@([pscustomobject]@{id='18a4783c-866b-4cc7-a460-3d5e5662c884';type='Role'})})}
+$wrongDeclaration = [pscustomobject]@{requiredResourceAccess=@([pscustomobject]@{resourceAppId='00000003-0000-0000-c000-000000000000';resourceAccess=@([pscustomobject]@{id='18a4783c-866b-4cc7-a460-3d5e5662c884';type='Scope'})})}
+Assert-True (Test-ApplicationPermissionDeclaration $ownedByDeclaration '00000003-0000-0000-c000-000000000000' '18a4783c-866b-4cc7-a460-3d5e5662c884') 'Exact Application.ReadWrite.OwnedBy application declaration was rejected.'
+Assert-True (-not (Test-ApplicationPermissionDeclaration $wrongDeclaration '00000003-0000-0000-c000-000000000000' '18a4783c-866b-4cc7-a460-3d5e5662c884')) 'Delegated/wrong-type permission declaration was accepted.'
 $bootstrapFailure = & pwsh -NoProfile -File $bootstrapPath -EnvFile '__missing__.env' -TenantId $syntheticGuid -SubscriptionId $syntheticGuid -Repository 'owner/repo' -Environment 'test' -Location 'westeurope' -StateResourceGroup 'rg-test' -StateStorageAccount $canary -StateContainer 'tfstate' -StateKey 'test.tfstate' -DeploymentAppName 'test' -ConfirmTarget $canary 2>&1
 $bootstrapFailureText = $bootstrapFailure -join "`n"
 Assert-Absent $bootstrapFailureText ([regex]::Escape($canary)) 'Synthetic value leaked through top-level bootstrap failure handling.'

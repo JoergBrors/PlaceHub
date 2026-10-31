@@ -108,6 +108,8 @@ The non-destructive path should remain within one protected runner/job so no bin
 
 Until approved retention exists, `DESTRUCTIVE_CHANGE` exits before apply. Policy `2026-10-31.1` and `scripts/Classify-TerraformPlan.ps1` implement the verified non-destructive path for `development`: the classifier reads the saved plan in memory, validates the pinned format/tool version and exact resource semantics, and the workflow reapplies only the same digest-verified file in the same job. `UNKNOWN_OR_UNVERIFIABLE` fails the run. This does not enable destructive apply or any other environment.
 
+For a pure create, AzureAD legitimately marks provider-generated output metadata such as object/client IDs as unknown until apply. The classifier permits unknowns only for an explicit resource-type-specific computed-output allowlist after every policy-bearing input has matched exactly. Unknown owner, role, redirect, permission, credential or other unlisted fields fail closed. Any unknown value on an update remains `UNKNOWN_OR_UNVERIFIABLE`.
+
 ### Approved development inventory — policy `2026-10-31.1`
 
 | Terraform address | Entra object | Approved configuration |

@@ -53,6 +53,7 @@ try {
     $sp = @{ owners=@('synthetic-owner'); app_role_assignment_required=$true }
     Invoke-Case no-change @() NO_CHANGE
     Invoke-Case create @(New-Change azuread_application.placehub_web azuread_application @('create') $null $web) CREATE_ONLY
+    Invoke-Case create-with-computed-id @(New-Change azuread_application.placehub_web azuread_application @('create') $null $web @{ client_id=$true; object_id=$true }) CREATE_ONLY
     Invoke-Case update @(New-Change azuread_service_principal.placehub_web azuread_service_principal @('update') $sp $sp) UPDATE_ONLY
     Invoke-Case mixed @(
         New-Change azuread_application.placehub_web azuread_application @('create') $null $web

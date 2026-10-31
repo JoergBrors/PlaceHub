@@ -35,15 +35,10 @@ jobs:
         working-directory: infrastructure/terraform
     env:
       AZURE_CORE_OUTPUT: none
-      ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-      ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       ARM_USE_OIDC: "true"
       ARM_USE_AZUREAD: "true"
       TF_IN_AUTOMATION: "true"
       TF_INPUT: "false"
-      TF_VAR_tenant_id: ${{ vars.AZURE_TENANT_ID }}
-      TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     steps:
       - name: Initialize ephemeral plan path
         shell: bash
@@ -62,24 +57,37 @@ jobs:
         env:
           SAFE_SELECTED_ENVIRONMENT: ${{ inputs.target_environment }}
           SAFE_EXPECTED_ENVIRONMENT: ${{ vars.TF_ENVIRONMENT }}
-          SAFE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
-          SAFE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-          SAFE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-          SAFE_STATE_RG: ${{ vars.TF_STATE_RG }}
-          SAFE_STATE_STORAGE: ${{ vars.TF_STATE_STORAGE }}
-          SAFE_STATE_CONTAINER: ${{ vars.TF_STATE_CONTAINER }}
-          SAFE_STATE_KEY: ${{ vars.TF_STATE_KEY }}
+          SAFE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          SAFE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          SAFE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          SAFE_STATE_RG: ${{ secrets.TF_STATE_RG }}
+          SAFE_STATE_STORAGE: ${{ secrets.TF_STATE_STORAGE }}
+          SAFE_STATE_CONTAINER: ${{ secrets.TF_STATE_CONTAINER }}
+          SAFE_STATE_KEY: ${{ secrets.TF_STATE_KEY }}
         run: |
           set -euo pipefail
-          for value in "$SAFE_SELECTED_ENVIRONMENT" "$SAFE_EXPECTED_ENVIRONMENT" "$SAFE_CLIENT_ID" "$SAFE_TENANT_ID" "$SAFE_SUBSCRIPTION_ID" "$SAFE_STATE_RG" "$SAFE_STATE_STORAGE" "$SAFE_STATE_CONTAINER" "$SAFE_STATE_KEY"; do
+          for value in "$SAFE_CLIENT_ID" "$SAFE_TENANT_ID" "$SAFE_SUBSCRIPTION_ID" "$SAFE_STATE_RG" "$SAFE_STATE_STORAGE" "$SAFE_STATE_CONTAINER" "$SAFE_STATE_KEY"; do
             if [[ -n "$value" ]]; then
               echo "::add-mask::$value"
             fi
           done
-          if [[ -z "$SAFE_EXPECTED_ENVIRONMENT" || "$SAFE_SELECTED_ENVIRONMENT" != "$SAFE_EXPECTED_ENVIRONMENT" ]]; then
+          if [[ -z "$SAFE_EXPECTED_ENVIRONMENT" || "$SAFE_SELECTED_ENVIRONMENT" != "$SAFE_EXPECTED_ENVIRONMENT" ||
+                -z "$SAFE_CLIENT_ID" || -z "$SAFE_TENANT_ID" || -z "$SAFE_SUBSCRIPTION_ID" ||
+                -z "$SAFE_STATE_RG" || -z "$SAFE_STATE_STORAGE" || -z "$SAFE_STATE_CONTAINER" || -z "$SAFE_STATE_KEY" ]]; then
             echo "CONFIGURATION_INVALID: FAILED" >&2
             exit 1
           fi
+          {
+            printf '%s\n' "ARM_CLIENT_ID=$SAFE_CLIENT_ID"
+            printf '%s\n' "ARM_TENANT_ID=$SAFE_TENANT_ID"
+            printf '%s\n' "ARM_SUBSCRIPTION_ID=$SAFE_SUBSCRIPTION_ID"
+            printf '%s\n' "TF_VAR_tenant_id=$SAFE_TENANT_ID"
+            printf '%s\n' "TF_VAR_subscription_id=$SAFE_SUBSCRIPTION_ID"
+            printf '%s\n' "TF_STATE_RG=$SAFE_STATE_RG"
+            printf '%s\n' "TF_STATE_STORAGE=$SAFE_STATE_STORAGE"
+            printf '%s\n' "TF_STATE_CONTAINER=$SAFE_STATE_CONTAINER"
+            printf '%s\n' "TF_STATE_KEY=$SAFE_STATE_KEY"
+          } >> "$GITHUB_ENV"
           echo "TARGET_BINDING_OK"
 
       - name: Check out the dispatched revision
@@ -90,9 +98,9 @@ jobs:
       - name: Authenticate to Azure with GitHub OIDC
         uses: azure/login@v3.1.0
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v4.0.1
@@ -115,10 +123,10 @@ jobs:
         run: |
           set -euo pipefail
           if ! captured_output="$(terraform init -input=false -no-color \
-            -backend-config="resource_group_name=${{ vars.TF_STATE_RG }}" \
-            -backend-config="storage_account_name=${{ vars.TF_STATE_STORAGE }}" \
-            -backend-config="container_name=${{ vars.TF_STATE_CONTAINER }}" \
-            -backend-config="key=${{ vars.TF_STATE_KEY }}" 2>&1)"; then
+            -backend-config="resource_group_name=$TF_STATE_RG" \
+            -backend-config="storage_account_name=$TF_STATE_STORAGE" \
+            -backend-config="container_name=$TF_STATE_CONTAINER" \
+            -backend-config="key=$TF_STATE_KEY" 2>&1)"; then
             unset captured_output
             echo "TERRAFORM_INIT_FAILED: FAILED" >&2
             exit 1

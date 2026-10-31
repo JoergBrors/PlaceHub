@@ -5,7 +5,8 @@ param(
     [string]$Repository, [string]$Environment, [string]$Location, [string]$StateResourceGroup,
     [string]$StateStorageAccount, [string]$StateContainer, [string]$StateKey, [string]$DeploymentAppName,
     [string]$ConfirmTarget, [switch]$DryRun, [switch]$SkipGitHubConfiguration,
-    [switch]$ApproveWorkloadContributor, [switch]$ApproveOidcCredentialRepair
+    [switch]$ApproveWorkloadContributor, [switch]$ApproveOidcCredentialRepair,
+    [switch]$ApproveApplicationReadWriteOwnedByDeclaration
 )
 
 Set-StrictMode -Version Latest
@@ -26,7 +27,7 @@ function Stop-Safe {
 }
 
 function Write-SafeStatus {
-    param([Parameter(Mandatory)][ValidateSet('PREREQUISITES_OK','AUTHENTICATION_OK','TARGET_CONFIRMED','DISCOVERY_OK','OIDC_REPAIR_REQUIRED','OIDC_REPAIRED','PREVIEW_COMPLETE','BOOTSTRAP_COMPLETE','GRAPH_PERMISSIONS_UNCHANGED')][string]$Status)
+    param([Parameter(Mandatory)][ValidateSet('PREREQUISITES_OK','AUTHENTICATION_OK','TARGET_CONFIRMED','DISCOVERY_OK','OIDC_REPAIR_REQUIRED','OIDC_REPAIRED','GRAPH_PERMISSION_DECLARATION_REQUIRED','GRAPH_PERMISSION_DECLARED','ADMIN_CONSENT_REQUIRED','PREVIEW_COMPLETE','BOOTSTRAP_COMPLETE','GRAPH_PERMISSIONS_UNCHANGED')][string]$Status)
     [Console]::Out.WriteLine($Status)
 }
 
@@ -96,6 +97,18 @@ function Test-FederatedCredentialExact {
     )
     $audiences = @($Credential.audiences)
     return ($Credential.issuer -ceq $Issuer -and $Credential.subject -ceq $Subject -and $audiences.Count -eq 1 -and $audiences[0] -ceq $Audience)
+}
+
+function Test-ApplicationPermissionDeclaration {
+    param(
+        [Parameter(Mandatory)][object]$Application,
+        [Parameter(Mandatory)][string]$ResourceAppId,
+        [Parameter(Mandatory)][string]$PermissionId
+    )
+    $matchingResources = @($Application.requiredResourceAccess | Where-Object { $_.resourceAppId -ceq $ResourceAppId })
+    if ($matchingResources.Count -ne 1) { return $false }
+    $entries = @($matchingResources[0].resourceAccess)
+    return ($entries.Count -eq 1 -and [string]$entries[0].id -ceq $PermissionId -and [string]$entries[0].type -ceq 'Role')
 }
 
 function Resolve-AzureFailureCategory {
@@ -215,6 +228,8 @@ try {
     $expectedIssuer = 'https://token.actions.githubusercontent.com'
     $expectedSubject = New-GitHubEnvironmentSubject -Repository ([string]$repo.Data.full_name) -Environment $Environment -UseImmutableSubject:([bool]$oidcSettings.Data.use_immutable_subject) -OwnerId ([string]$repo.Data.owner.id) -RepositoryId ([string]$repo.Data.id)
     $expectedAudience = 'api://AzureADTokenExchange'
+    $microsoftGraphAppId = '00000003-0000-0000-c000-000000000000'
+    $applicationReadWriteOwnedById = '18a4783c-866b-4cc7-a460-3d5e5662c884'
     $ficName = "github-$($Environment.ToLowerInvariant() -replace '[^a-z0-9-]','-')"
 
     $rg = Invoke-AzJson @('group','show','--name',$StateResourceGroup,'--subscription',$SubscriptionId) 'AUTHORIZATION_FAILED' -AllowFailure
@@ -224,7 +239,12 @@ try {
     if ($apps.Count -gt 1) { Stop-Safe 'RESOURCE_CONFLICT' }
     $changesRequired = -not ($rg.Succeeded -and $storage.Succeeded -and $workload.Succeeded)
     $app = if ($apps.Count -eq 1) { $apps[0] } else { $null }; $credentialExists = $false; $credentialRequiresRepair = $false; $existingCredential = $null
+    $graphPermissionDeclared = $false
     if ($app) {
+        $graphPermissionDeclared = Test-ApplicationPermissionDeclaration $app $microsoftGraphAppId $applicationReadWriteOwnedById
+        $graphResources = @($app.requiredResourceAccess | Where-Object { $_.resourceAppId -ceq $microsoftGraphAppId })
+        if ($graphResources.Count -gt 1 -or ($graphResources.Count -eq 1 -and -not $graphPermissionDeclared)) { Stop-Safe 'RESOURCE_CONFLICT' }
+        if (-not $graphPermissionDeclared) { $changesRequired = $true }
         $ficUrl = "https://graph.microsoft.com/v1.0/applications/$($app.id)/federatedIdentityCredentials"
         $named = @((Invoke-AzJson @('rest','--method','get','--url',$ficUrl) 'AUTHORIZATION_FAILED').Data.value | Where-Object name -eq $ficName)
         if ($named.Count -gt 1) { Stop-Safe 'RESOURCE_CONFLICT' }
@@ -236,14 +256,16 @@ try {
     } else { $changesRequired = $true }
     Write-SafeStatus 'DISCOVERY_OK'
     if ($credentialRequiresRepair) { Write-SafeStatus 'OIDC_REPAIR_REQUIRED' }
+    if (-not $graphPermissionDeclared) { Write-SafeStatus 'GRAPH_PERMISSION_DECLARATION_REQUIRED' }
 
     if ($DryRun -or [bool]$WhatIfPreference) {
-        Write-SafeStatus 'PREVIEW_COMPLETE'; Write-SafeStatus 'GRAPH_PERMISSIONS_UNCHANGED'; return
+        Write-SafeStatus 'PREVIEW_COMPLETE'; Write-SafeStatus 'ADMIN_CONSENT_REQUIRED'; return
     }
 
     # ADR-016 acceptance does not approve this RBAC grant. Mutation mode requires a separate explicit authorization.
     if (-not $ApproveWorkloadContributor) { Stop-Safe 'AUTHORIZATION_FAILED' }
     if ($credentialRequiresRepair -and -not $ApproveOidcCredentialRepair) { Stop-Safe 'OIDC_VALIDATION_FAILED' }
+    if (-not $graphPermissionDeclared -and -not $ApproveApplicationReadWriteOwnedByDeclaration) { Stop-Safe 'AUTHORIZATION_FAILED' }
 
     if (-not $rg.Succeeded) { if (-not (Invoke-Mutation 'az' @('group','create','--name',$StateResourceGroup,'--location',$Location,'--subscription',$SubscriptionId,'--output','none','--only-show-errors') 'AUTHORIZATION_FAILED').Executed) { Stop-Safe 'CONFIGURATION_INVALID' } }
     if (-not $storage.Succeeded) { if (-not (Invoke-Mutation 'az' @('storage','account','create','--name',$StateStorageAccount,'--resource-group',$StateResourceGroup,'--location',$Location,'--sku','Standard_LRS','--kind','StorageV2','--min-tls-version','TLS1_2','--allow-blob-public-access','false','--allow-shared-key-access','false','--https-only','true','--subscription',$SubscriptionId,'--output','none','--only-show-errors') 'AUTHORIZATION_FAILED').Executed) { Stop-Safe 'CONFIGURATION_INVALID' } }
@@ -257,6 +279,13 @@ try {
         if (-not $created.Executed -or -not $created.Data) { Stop-Safe 'CONFIGURATION_INVALID' }; $app = $created.Data
     }
     $clientId = $app.appId; $appObjectId = $app.id
+    if (-not $graphPermissionDeclared) {
+        $null = Invoke-Mutation 'az' @('ad','app','permission','add','--id',$clientId,'--api',$microsoftGraphAppId,'--api-permissions',"$applicationReadWriteOwnedById=Role",'--only-show-errors') 'AUTHORIZATION_FAILED'
+        $verifiedApp = (Invoke-AzJson @('ad','app','show','--id',$clientId) 'AUTHORIZATION_FAILED').Data
+        if (-not (Test-ApplicationPermissionDeclaration $verifiedApp $microsoftGraphAppId $applicationReadWriteOwnedById)) { Stop-Safe 'AUTHORIZATION_FAILED' }
+        $graphPermissionDeclared = $true
+        Write-SafeStatus 'GRAPH_PERMISSION_DECLARED'
+    }
     $servicePrincipals = @((Invoke-AzJson @('ad','sp','list','--filter',"appId eq '$clientId'") 'AUTHORIZATION_FAILED').Data)
     if ($servicePrincipals.Count -gt 1) { Stop-Safe 'RESOURCE_CONFLICT' }
     if ($servicePrincipals.Count -eq 0) {
@@ -288,7 +317,7 @@ try {
         $variables = [ordered]@{AZURE_CLIENT_ID=$clientId;AZURE_TENANT_ID=$TenantId;AZURE_SUBSCRIPTION_ID=$SubscriptionId;TF_STATE_RG=$StateResourceGroup;TF_STATE_STORAGE=$StateStorageAccount;TF_STATE_CONTAINER=$StateContainer;TF_STATE_KEY=$StateKey;TF_ENVIRONMENT=$Environment}
         foreach ($entry in $variables.GetEnumerator()) { $null = Invoke-Mutation 'gh' @('variable','set',$entry.Key,'--body',[string]$entry.Value,'--env',$Environment,'--repo',$Repository) 'AUTHORIZATION_FAILED' }
     }
-    Write-SafeStatus 'BOOTSTRAP_COMPLETE'; Write-SafeStatus 'GRAPH_PERMISSIONS_UNCHANGED'
+    Write-SafeStatus 'BOOTSTRAP_COMPLETE'; Write-SafeStatus 'ADMIN_CONSENT_REQUIRED'
 }
 catch {
     $category = if ($_.Exception.Data.Contains('SafeCategory') -and $script:AllowedFailureCategories -contains $_.Exception.Data['SafeCategory']) { [string]$_.Exception.Data['SafeCategory'] } else { 'CONFIGURATION_INVALID' }

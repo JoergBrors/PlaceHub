@@ -25,20 +25,29 @@ Copy `.env.example` to `.env` and enter identifiers. The parser accepts only `NA
 ```powershell
 $target = '<tenant-guid>/<subscription-guid>/<owner/repo>/<environment>'
 ./scripts/Bootstrap-Terraform.ps1 -DryRun -ConfirmTarget $target -WhatIf
-./scripts/Bootstrap-Terraform.ps1 -ConfirmTarget $target -ApproveWorkloadContributor
+./scripts/Bootstrap-Terraform.ps1 -ConfirmTarget $target -ApproveWorkloadContributor -ApproveApplicationReadWriteOwnedByDeclaration
 ```
 
 `-DryRun` performs authentication and read checks but suppresses the entire dependent mutation phase. `-WhatIf` has the same mutation guarantee. Neither mode substitutes placeholder identities or attempts downstream RBAC after a suppressed identity creation. The script is idempotent: it reuses uniquely named resources, verifies existing federated trust, and uses idempotent ARM/role assignment operations. Multiple same-name Entra apps stop execution.
 
 Mutation mode additionally requires `-ApproveWorkloadContributor`. This bootstrap-only switch authorizes an effective RBAC grant to the deployment identity, not an ordinary Terraform resource create/update. Amended ADR-016 does not grant unrestricted privilege elevation, so the switch remains required until the exact environment permission bootstrap is separately authorized. It does not authorize production deployment.
 
+`-ApproveApplicationReadWriteOwnedByDeclaration` authorizes only the Microsoft Graph **application-permission declaration** with resource app ID `00000003-0000-0000-c000-000000000000`, permission ID `18a4783c-866b-4cc7-a460-3d5e5662c884` and type `Role`. The script rejects conflicting Microsoft Graph declarations and verifies the exact value after writing. It never runs `az ad app permission admin-consent`; an independently authorized Entra administrator must grant tenant-wide consent in the portal. `Application.ReadWrite.All`, `AppRoleAssignment.ReadWrite.All` and `Directory.ReadWrite.All` remain prohibited.
+
 Repairing an existing, mismatched federated credential additionally requires `-ApproveOidcCredentialRepair`. The switch authorizes only an in-place Microsoft Graph `PATCH` of the one uniquely named credential discovered for the target environment. The script does not create a second credential, broaden the issuer/audience, change GitHub OIDC settings, or proceed when duplicate named credentials exist. It reads the credential back and requires an exact match after repair.
 
-Routine output is limited to allowlisted statuses such as `PREREQUISITES_OK`, `DISCOVERY_OK`, `PREVIEW_COMPLETE` and `BOOTSTRAP_COMPLETE`. Preview deliberately does not claim that no changes are needed: some write-only or permission-sensitive conditions are validated only during an authorized run. Failures contain only a stable category and `FAILED`. The script does not print identifiers, commands, argument arrays, native stdout/stderr, exception details, API bodies or a result object. Only the eight named non-secret configuration variables are uploaded; `.env` is never bulk-uploaded.
+Routine output is limited to allowlisted statuses such as `PREREQUISITES_OK`, `DISCOVERY_OK`, `GRAPH_PERMISSION_DECLARATION_REQUIRED`, `PREVIEW_COMPLETE`, `GRAPH_PERMISSION_DECLARED`, `ADMIN_CONSENT_REQUIRED` and `BOOTSTRAP_COMPLETE`. Preview deliberately does not claim that no changes are needed: some write-only or permission-sensitive conditions are validated only during an authorized run. Failures contain only a stable category and `FAILED`. The script does not print identifiers, commands, argument arrays, native stdout/stderr, exception details, API bodies or a result object. `.env` is never bulk-uploaded. The legacy variable upload remains only for bootstrap compatibility; the hardened workflow uses the same seven identifiers as manually configured Environment secrets for automatic masking.
 
 ## GitHub and OIDC controls
 
-The workflow has only `workflow_dispatch`, defaults to `plan`, requires selection of the target GitHub Environment, and exposes no destroy operation. It has `contents: read` and `id-token: write`, uses an environment-bound OIDC credential, pins tool/action versions, serializes runs per selected environment, and never uploads a plan artifact. Before authentication it requires the selected environment name to equal that environment's `TF_ENVIRONMENT` value. At runtime, the first step derives `TF_PLAN_PATH` from the runner-provided `RUNNER_TEMP` variable and exports it through `GITHUB_ENV` for the later plan, apply and cleanup steps; runner context expressions are not used in job-level `env`. Pre-checkout initialization and target validation, plus the always-run cleanup, explicitly start in `runner.temp` so they do not depend on the repository working directory existing. Terraform steps retain the `infrastructure/terraform` default after checkout. Apply consumes the exact saved plan created in the same job and run. The explicit environment input avoids a bootstrap paradox: environment-scoped variables are not available until GitHub has selected that environment.
+The workflow has only `workflow_dispatch`, defaults to `plan`, requires selection of the target GitHub Environment, and exposes no destroy operation. It has `contents: read` and `id-token: write`, uses an environment-bound OIDC credential, pins tool/action versions, serializes runs per selected environment, and never uploads a plan artifact. Before authentication it requires the selected environment name to equal that environment's `TF_ENVIRONMENT` value. At runtime, the first step derives `TF_PLAN_PATH` from the runner-provided `RUNNER_TEMP` variable. The following validation step exports the already masked identity/backend configuration through `GITHUB_ENV`; identifiers are deliberately not present in job-level `env` before masks are active. Pre-checkout initialization and target validation, plus the always-run cleanup, explicitly start in `runner.temp` so they do not depend on the repository working directory existing. Terraform steps retain the `infrastructure/terraform` default after checkout. Apply consumes the exact saved plan created in the same job and run.
+
+GitHub Environment configuration is split by logging sensitivity:
+
+- Keep `TF_ENVIRONMENT=development` as an Environment variable.
+- Store `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `TF_STATE_RG`, `TF_STATE_STORAGE`, `TF_STATE_CONTAINER` and `TF_STATE_KEY` as Environment secrets. They are identifiers rather than credentials, but GitHub variables are rendered unmasked in the first step's environment block. Secret storage is used here only to obtain GitHub's automatic log masking; it does not introduce a permanent Azure credential.
+
+The bootstrap's existing GitHub-variable output predates this hardened logging boundary. Until it is separately upgraded to write encrypted Environment secrets without exposing command arguments, copy the seven existing values into same-named Environment secrets through **Settings → Environments → development → Environment secrets**. Do not delete the variables until the secret-backed plan run succeeds; the current workflow ignores those seven variables. Never paste their values into workflow logs or command arguments.
 
 The bootstrap queries the repository and its Actions OIDC subject settings without changing them. For the name-based default, the exact environment subject is `repo:JoergBrors/PlaceHub:environment:development`. GitHub repositories created after 2026-07-15, renamed or transferred after that date, or opted in use the immutable form `repo:OWNER@OWNER-ID/REPOSITORY@REPOSITORY-ID:environment:development`; the bootstrap obtains the numeric IDs from GitHub and constructs that exact value. A custom template is accepted only when its ordered claims are exactly `repo,context`, which retains the repository/environment boundary. Other templates fail closed with `OIDC_VALIDATION_FAILED`.
 
@@ -112,14 +121,14 @@ Preview the recovery first, then retry with the same confirmed values and the st
 
 ```powershell
 ./scripts/Bootstrap-Terraform.ps1 -DryRun -ConfirmTarget $target -WhatIf
-./scripts/Bootstrap-Terraform.ps1 -ConfirmTarget $target -ApproveWorkloadContributor
+./scripts/Bootstrap-Terraform.ps1 -ConfirmTarget $target -ApproveWorkloadContributor -ApproveApplicationReadWriteOwnedByDeclaration
 ```
 
 If preview emits `OIDC_REPAIR_REQUIRED`, obtain specific approval to replace the incorrect trust value, then use both approval switches:
 
 ```powershell
 ./scripts/Bootstrap-Terraform.ps1 -DryRun -ConfirmTarget $target -WhatIf
-./scripts/Bootstrap-Terraform.ps1 -ConfirmTarget $target -ApproveWorkloadContributor -ApproveOidcCredentialRepair
+./scripts/Bootstrap-Terraform.ps1 -ConfirmTarget $target -ApproveWorkloadContributor -ApproveOidcCredentialRepair -ApproveApplicationReadWriteOwnedByDeclaration
 ```
 
 The repair patches the existing `github-development` credential in place and verifies its exact issuer, subject and sole audience. Do not delete it manually or create a second credential. The operation requires the operator's existing Entra application-write authority; it does not grant Graph permissions or admin consent. If GitHub authentication cannot read the repository OIDC configuration, or if the template is not the accepted repository/environment form, execution stops before mutation.
@@ -133,7 +142,7 @@ Routine errors remain sanitized. A malformed internally constructed ARM URL is `
 | Azure ARM | Contributor | Approved workload resource group only | Create/update application Azure resources; excludes RBAC assignment. Approval gate because final resource set is not yet defined. |
 | Azure Storage data | Storage Blob Data Contributor | Exact state container | Read/write/delete state and acquire blob lease. Required. |
 | Azure ARM | Reader | Storage account | Not assigned; only needed if backend blob endpoint lookup is enabled. |
-| Microsoft Graph | `Application.ReadWrite.OwnedBy` application permission | Tenant directory, effective write authority for owned apps/SPs | Preferred candidate under amended ADR-016 for approved app/service-principal create/update. Requires admin consent, ownership bootstrap and provider-operation proof. Not assigned. It still permits listing apps/SPs and credential management for owned objects. |
+| Microsoft Graph | `Application.ReadWrite.OwnedBy` application permission | Tenant directory, effective write authority for owned apps/SPs | Bootstrap can declare the exact application role only with its dedicated switch. Admin consent remains a separate administrator action. It still permits listing apps/SPs and credential management for owned objects. |
 | Microsoft Graph | `Application.ReadWrite.All` | Tenant directory | Broad fallback; not approved and must not be granted without architecture/security approval. |
 | Microsoft Graph | `AppRoleAssignment.ReadWrite.All` | Tenant directory | Needed for some API permission grants/app-role assignments; highly privileged and can elevate applications. Not approved; keep consent/provisioning outside routine Terraform unless separately designed. |
 | Exchange Online | Application RBAC management role | Scoped management scope | Only if a separate provisioning identity manages mailboxes. Not part of Terraform deployment identity and not configured. |

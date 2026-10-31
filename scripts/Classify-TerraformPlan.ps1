@@ -71,6 +71,16 @@ function Test-UnknownValue {
     return $false
 }
 
+function Get-UnknownRootNames {
+    param([object]$Value)
+    $roots = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    if ($null -eq $Value) { return @() }
+    foreach ($property in $Value.PSObject.Properties) {
+        if (Test-UnknownValue $property.Value) { $null = $roots.Add($property.Name) }
+    }
+    return @($roots)
+}
+
 function Test-ExactSet {
     param([object[]]$Actual, [object[]]$Expected)
     $actualStrings = @($Actual | ForEach-Object { [string]$_ } | Sort-Object -Unique)
@@ -199,7 +209,20 @@ try {
         $actions = @(Get-Array (Get-PropertyValue $changeBody 'actions'))
         $unsupportedActions = @($actions | Where-Object { $_ -notin @('no-op','read','create','update','delete') })
         if ($actions.Count -lt 1 -or $unsupportedActions.Count -gt 0) { throw 'unknown action' }
-        if (Test-UnknownValue (Get-PropertyValue $changeBody 'after_unknown')) { throw 'unknown value' }
+        $afterUnknown = Get-PropertyValue $changeBody 'after_unknown'
+        if (Test-UnknownValue $afterUnknown) {
+            if ($actions -contains 'update') { throw 'unknown value' }
+            # Pure creates legitimately contain provider-computed output fields.
+            # Policy-bearing inputs are never on these explicit allowlists.
+            $allowedComputedRoots = if ($type -eq 'azuread_application') {
+                @('client_id','disabled_by_microsoft','logo_url','object_id','publisher_domain')
+            } else {
+                @('application_tenant_id','client_id','display_name','object_id','service_principal_names','type')
+            }
+            foreach ($unknownRoot in @(Get-UnknownRootNames $afterUnknown)) {
+                if ($unknownRoot -notin $allowedComputedRoots) { throw 'unknown value' }
+            }
+        }
         if ($actions -contains 'delete') { $deletes++ }
         if ($actions -contains 'create') { $creates++ }
         if ($actions -contains 'update') { $updates++ }

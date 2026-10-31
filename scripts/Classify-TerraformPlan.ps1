@@ -217,13 +217,13 @@ try {
             # Policy-bearing inputs are never on these explicit allowlists.
             $allowedComputedRoots = if ($type -eq 'azuread_application') {
                 @(
-                    'app_role_ids','client_id','disabled_by_microsoft','feature_tags',
+                    'app_role_ids','client_id','disabled_by_microsoft','feature_tags','id',
                     'logo_url','oauth2_permission_scope_ids','object_id','publisher_domain',
                     'tags','template_id'
                 )
             } else {
                 @(
-                    'app_role_ids','app_roles','application_tenant_id','client_id','display_name',
+                    'app_role_ids','app_roles','application_tenant_id','client_id','display_name','id',
                     'feature_tags','features','homepage_url','logout_url','oauth2_permission_scope_ids',
                     'oauth2_permission_scopes','object_id','redirect_uris','saml_metadata_url',
                     'service_principal_names','sign_in_audience','tags','type'
@@ -231,16 +231,9 @@ try {
             }
             foreach ($unknownRoot in @(Get-UnknownRootNames $afterUnknown)) {
                 if ($unknownRoot -notin $allowedComputedRoots) {
-                    $safeDiagnosticRoots = @(
-                        'account_enabled','alternative_names','api','app_role','app_role_assignment_required',
-                        'client_id','description','device_only_auth_enabled','display_name','fallback_public_client_enabled',
-                        'feature_tags','features','homepage_url','identifier_uris','login_url','logout_url','notes',
-                        'notification_email_addresses','oauth2_post_response_required','optional_claims','owners','password',
-                        'preferred_single_sign_on_mode','prevent_duplicate_names','public_client','required_resource_access',
-                        'saml_single_sign_on','service_management_reference','sign_in_audience','single_page_application',
-                        'support_url','tags','template_id','terms_of_service_url','web'
-                    )
-                    $script:UnknownRootSummary = if ($unknownRoot -in $safeDiagnosticRoots) { $unknownRoot } else { 'UNRECOGNIZED_SCHEMA_FIELD' }
+                    # Terraform schema keys are non-sensitive. Only a tightly
+                    # constrained identifier is emitted; values are never logged.
+                    $script:UnknownRootSummary = if ($unknownRoot -cmatch '^[a-z][a-z0-9_]{0,63}$') { $unknownRoot } else { 'UNRECOGNIZED_SCHEMA_FIELD' }
                     throw 'unknown value'
                 }
             }

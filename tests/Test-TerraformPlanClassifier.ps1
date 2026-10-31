@@ -37,7 +37,7 @@ function New-Change {
 }
 
 function Invoke-Case {
-    param([string]$Name, [object[]]$Changes, [string]$Expected, [int]$ExpectedExit = 0, [string]$Canary)
+    param([string]$Name, [object[]]$Changes, [string]$Expected, [int]$ExpectedExit = 0, [string]$Canary, [string]$ExpectedUnknownField)
     $path = Join-Path $temporaryDirectory "$Name.json"
     [ordered]@{ format_version='1.2'; terraform_version='1.16.1'; resource_changes=$Changes } |
         ConvertTo-Json -Depth 40 | Set-Content -LiteralPath $path -Encoding utf8NoBOM
@@ -46,6 +46,8 @@ function Invoke-Case {
     if ($exitCode -ne $ExpectedExit) { throw "$Name returned exit $exitCode instead of $ExpectedExit. Classifier output: $output" }
     if ($output -notmatch [regex]::Escape("TERRAFORM_PLAN_CLASSIFIED: $Expected")) { throw "$Name did not classify as $Expected." }
     if ($Canary -and $output.Contains($Canary)) { throw "$Name exposed fixture content." }
+    if ($ExpectedUnknownField -and $output -notmatch [regex]::Escape("TERRAFORM_PLAN_UNKNOWN_FIELD: $ExpectedUnknownField")) { throw "$Name did not emit the expected safe field diagnostic." }
+    if ($output -match '(?m)^Write-Error:|\s+Line \|') { throw "$Name emitted a PowerShell stack trace." }
 }
 
 try {
@@ -72,7 +74,7 @@ try {
     $permissionBefore.required_resource_access = @(@{ resource_app_id='00000003-0000-0000-c000-000000000000'; resource_access=@(@{id='synthetic-sensitive-id';type='Scope'}) })
     Invoke-Case permission-removal @(New-Change azuread_application.placehub_web azuread_application @('update') $permissionBefore $web) DESTRUCTIVE_CHANGE 0 'synthetic-sensitive-id'
     Invoke-Case unknown-action @(New-Change azuread_application.placehub_web azuread_application @('future-action') $null $web) UNKNOWN_OR_UNVERIFIABLE 1
-    Invoke-Case unknown-value @(New-Change azuread_application.placehub_web azuread_application @('create') $null $web @{ owners=$true }) UNKNOWN_OR_UNVERIFIABLE 1
+    Invoke-Case unknown-value @(New-Change azuread_application.placehub_web azuread_application @('create') $null $web @{ owners=$true }) UNKNOWN_OR_UNVERIFIABLE 1 $null owners
     Invoke-Case unapproved-resource @(New-Change azurerm_linux_web_app.forbidden azurerm_linux_web_app @('create') $null @{}) UNKNOWN_OR_UNVERIFIABLE 1
 
     $wrongVersionPath = Join-Path $temporaryDirectory 'wrong-version.json'

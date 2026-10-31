@@ -22,6 +22,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+$script:UnknownRootSummary = $null
 
 function Get-PropertyValue {
     param([object]$Object, [string]$Name)
@@ -229,7 +230,19 @@ try {
                 )
             }
             foreach ($unknownRoot in @(Get-UnknownRootNames $afterUnknown)) {
-                if ($unknownRoot -notin $allowedComputedRoots) { throw 'unknown value' }
+                if ($unknownRoot -notin $allowedComputedRoots) {
+                    $safeDiagnosticRoots = @(
+                        'account_enabled','alternative_names','api','app_role','app_role_assignment_required',
+                        'client_id','description','device_only_auth_enabled','display_name','fallback_public_client_enabled',
+                        'feature_tags','features','homepage_url','identifier_uris','login_url','logout_url','notes',
+                        'notification_email_addresses','oauth2_post_response_required','optional_claims','owners','password',
+                        'preferred_single_sign_on_mode','prevent_duplicate_names','public_client','required_resource_access',
+                        'saml_single_sign_on','service_management_reference','sign_in_audience','single_page_application',
+                        'support_url','tags','template_id','terms_of_service_url','web'
+                    )
+                    $script:UnknownRootSummary = if ($unknownRoot -in $safeDiagnosticRoots) { $unknownRoot } else { 'UNRECOGNIZED_SCHEMA_FIELD' }
+                    throw 'unknown value'
+                }
             }
         }
         if ($actions -contains 'delete') { $deletes++ }
@@ -276,7 +289,10 @@ catch {
         default { 'INPUT_UNVERIFIABLE' }
     }
     Write-Output "TERRAFORM_PLAN_POLICY_REASON: $safeReason"
-    Write-Error 'TERRAFORM_PLAN_POLICY_FAILED: FAILED' -ErrorAction Continue
+    if ($safeReason -eq 'VALUE_UNKNOWN' -and $script:UnknownRootSummary) {
+        Write-Output "TERRAFORM_PLAN_UNKNOWN_FIELD: $script:UnknownRootSummary"
+    }
+    [Console]::Error.WriteLine('TERRAFORM_PLAN_POLICY_FAILED: FAILED')
     exit 1
 }
 

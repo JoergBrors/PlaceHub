@@ -44,8 +44,17 @@ jobs:
       TF_INPUT: "false"
       TF_VAR_tenant_id: ${{ vars.AZURE_TENANT_ID }}
       TF_VAR_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      TF_PLAN_PATH: ${{ runner.temp }}/placehub.tfplan
     steps:
+      - name: Initialize ephemeral plan path
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${RUNNER_TEMP:-}" ]]; then
+            echo "CONFIGURATION_INVALID: FAILED" >&2
+            exit 1
+          fi
+          printf '%s\n' "TF_PLAN_PATH=$RUNNER_TEMP/placehub.tfplan" >> "$GITHUB_ENV"
+
       - name: Register secondary masks and validate target binding
         shell: bash
         env:

@@ -26,6 +26,13 @@ Assert-True ($workflow -match 'terraform apply[^\r\n]*\$TF_PLAN_PATH') 'Apply mu
 Assert-True ($workflow -match 'terraform plan[^\r\n]*-detailed-exitcode') 'Plan must derive only a minimal change status.'
 Assert-True ($workflow -match 'Changes detected: yes' -and $workflow -match 'Changes detected: no') 'Allowlisted plan summary missing.'
 Assert-True ($workflow -match 'rm -f -- "\$TF_PLAN_PATH"' -and $workflow -match '\$\{\{ always\(\) \}\}') 'Saved plan cleanup missing.'
+Assert-Absent $workflow '\$\{\{\s*runner\.temp\s*\}\}' 'runner.temp is not valid in the job-level env expression context.'
+Assert-True ($workflow -match 'TF_PLAN_PATH=\$RUNNER_TEMP/placehub\.tfplan.+\$GITHUB_ENV') 'Saved-plan path is not initialized from RUNNER_TEMP through GITHUB_ENV.'
+$planPathInitialization = $workflow.IndexOf('TF_PLAN_PATH=$RUNNER_TEMP/placehub.tfplan', [StringComparison]::Ordinal)
+$planStep = $workflow.IndexOf('- name: Create saved plan', [StringComparison]::Ordinal)
+$applyStep = $workflow.IndexOf('- name: Apply the exact saved plan', [StringComparison]::Ordinal)
+$cleanupStep = $workflow.IndexOf('- name: Remove saved plan', [StringComparison]::Ordinal)
+Assert-True ($planPathInitialization -ge 0 -and $planPathInitialization -lt $planStep -and $planStep -lt $applyStep -and $applyStep -lt $cleanupStep) 'TF_PLAN_PATH must be exported before plan, apply, and cleanup steps.'
 Assert-True ($workflow -match 'SAFE_SELECTED_ENVIRONMENT.*\$\{\{ inputs.target_environment \}\}' -and $workflow -match 'SAFE_EXPECTED_ENVIRONMENT.*\$\{\{ vars.TF_ENVIRONMENT \}\}') 'Selected environment is not bound to approved configuration.'
 foreach ($category in @('TERRAFORM_INIT_FAILED','TERRAFORM_VALIDATE_FAILED','TERRAFORM_PLAN_FAILED','TERRAFORM_APPLY_FAILED')) { Assert-True ($workflow.Contains($category)) "Missing failure category $category." }
 

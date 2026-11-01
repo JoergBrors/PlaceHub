@@ -1,10 +1,10 @@
 # Live-first architecture approval package
 
-**Status:** Proposed package; no ADR status is changed and no live activation is authorized.
+**Status:** Project Owner architecture approval recorded 2026-11-01; no effective permission, consent, production processing or Terraform apply is authorized.
 
-## Conflict requiring Project Owner decision
+## Recorded architecture decision
 
-The new product direction says normal execution is live-first and mocks exist only in isolated tests. Accepted ADR-009 and ADR-013, plus the accepted local-first baseline, currently make local mocks the default initial-PoC topology. Active permission declarations are also outside development policy `2026-10-31.1`. The requested target therefore requires explicit amendments before runtime defaults or active Terraform policy are changed.
+Normal development execution is Live-First and fails closed; synthetic mocks are test-only. The established Entra roles, isolated worker, single-instance durable development queue, Exchange Online PowerShell provisioning interface and worker-only Terraform-managed Key Vault/RBAC boundary are approved. The web process has zero Key Vault access.
 
 ## Requested decisions
 

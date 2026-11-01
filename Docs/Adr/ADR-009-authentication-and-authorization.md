@@ -1,11 +1,13 @@
 # ADR-009: Authentication and Authorization
 
-- **Status:** Accepted
+- **Status:** Accepted, amended for Live-First development
 - **Priority:** P0
 - **Date:** 2026-10-31
 - **Project:** PlaceHub – Workplace & Resource Management
 - **Approval date:** 2026-10-31
 - **Decision authority:** Project Owner approval
+- **Amendment date:** 2026-11-01
+- **Amendment authority:** Project Owner approval
 - **Governance:** Accepted identity boundaries; permissions and consent remain separate gates
 
 ## Context
@@ -43,6 +45,11 @@ Eine Office-Manager-Anforderung erzeugt nur nach Rollen- und Standortprüfung ei
 Der lokale PoC verwendet ausschließlich exakt registrierte HTTPS-Localhost-Redirect- und Sign-out-URIs mit festem Port. Es gibt keine Managed Identity im lokalen Webcontainer; Runtime-Identity und Secret Provider sind austauschbare Adapter. Mocks sind Standard, Live-Graph-Aufrufe benötigen weiterhin separat genehmigte delegated permissions.
 
 ## Documentation Impact
+
+## Live-First amendment
+
+Normal development runtime requires the existing single-tenant confidential web registration, recognized application role, location assignment and live Microsoft 365 adapters. Missing identity, credential, consent or tenant capability fails closed without mock fallback. Synthetic identities and providers are permitted only through an explicitly selected test profile and can never access live adapters. Effective consent, assignments and confidential credential enrollment remain separate administrative gates.
+
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 
 ## Open Questions / Approval Gates

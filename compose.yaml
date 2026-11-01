@@ -1,7 +1,9 @@
 services:
   placehub-web:
-    build: .
-    ports: ["127.0.0.1:8080:8080"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports: ["127.0.0.1:3242:8443"]
     read_only: true
     tmpfs: ["/tmp:size=32m,noexec,nosuid"]
     security_opt: ["no-new-privileges:true"]
@@ -9,10 +11,51 @@ services:
     pids_limit: 100
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      Microsoft365__Mode: OfflineMock
-      Microsoft365__AllowSyntheticData: "true"
+      ASPNETCORE_URLS: https://+:8443
+      ASPNETCORE_Kestrel__Certificates__Default__Path: /run/placehub-tls/tls.crt
+      ASPNETCORE_Kestrel__Certificates__Default__KeyPath: /run/placehub-tls/tls.key
+      Microsoft365__Mode: Microsoft365ReadOnly
+      Microsoft365__AllowSyntheticData: "false"
+      Microsoft365__TenantId: ${PLACEHUB_TENANT_ID:-}
+      Microsoft365__ClientId: ${PLACEHUB_CLIENT_ID:-}
+      Microsoft365__CredentialProvider: ${PLACEHUB_WEB_CREDENTIAL_PROVIDER:-None}
+      Microsoft365__PermissionsApproved: ${PLACEHUB_PERMISSIONS_APPROVED:-false}
+      Microsoft365__ConsentVerified: ${PLACEHUB_CONSENT_VERIFIED:-false}
+      Microsoft365__TenantCapabilityVerified: ${PLACEHUB_TENANT_CAPABILITY_VERIFIED:-false}
+    volumes:
+      - type: bind
+        source: ${PLACEHUB_TLS_DIRECTORY:?PLACEHUB_TLS_DIRECTORY required}
+        target: /run/placehub-tls
+        read_only: true
+      - placehub-data:/var/lib/placehub
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8080/health/live"]
+      test: ["CMD", "wget", "--no-check-certificate", "--spider", "-q", "https://127.0.0.1:8443/health/live"]
       interval: 30s
       timeout: 3s
       retries: 3
+
+  placehub-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    read_only: true
+    tmpfs: ["/tmp:size=32m,noexec,nosuid"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    pids_limit: 80
+    environment:
+      Worker__Enabled: "false"
+      Worker__KeyVaultNetworkPathVerified: "false"
+      Worker__CredentialBootstrapVerified: "false"
+      Worker__QueuePath: /var/lib/placehub/placehub-development.db
+      Worker__Environment: development
+    volumes:
+      - placehub-data:/var/lib/placehub
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/placehub-worker-boundary-ready"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  placehub-data:

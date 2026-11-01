@@ -14,7 +14,7 @@ The current repository still stores requests in memory and invokes the mock adap
 
 ## Architectural stop
 
-Proposed ADR-015 governs privileged operations but is not accepted. Proposed ADR-017 now records the missing decisions for SQLite persistence, request/execution state separation, leases, crash recovery, retry/reconciliation and the separate worker process. Until both are approved, PlaceHub must not claim durable processing or isolated execution.
+ADR-015 and ADR-017 are accepted for the development architecture. Durable persistence, separate-process execution and lease/recovery behavior still require implementation and verification before PlaceHub may claim operational durability or isolation. Effective worker permissions remain separate gates.
 
 ## Prepared Entra configuration
 
@@ -37,6 +37,17 @@ Terraform already contains stable, immutable role IDs for `PlaceHub.OfficeManage
 6. Start the mock worker as a separate process and prove restart, expiry, duplicate claim and reconciliation behavior.
 7. Separately approve the worker certificate, Exchange Application RBAC, residual mailbox-create privilege, command allowlists and runtime.
 8. Run authorized test-tenant positive and negative tests before any live activation.
+
+## Implementation roadmap after 2026-11-01 architecture approval
+
+1. **Complete:** record scoped ADR amendments and Live-First/test-profile split.
+2. **Complete:** create the additive Worker Key Vault/RBAC draft plan without certificate material.
+3. **Next approval:** confirm exact vault name, existing resource group, worker runtime principal, reachable network design and cost-bearing plan.
+4. Generate and validate Terraform only after the plan moves from `draft` to `approved`; keep apply separate.
+5. Implement SQLite migrations and transactional queue/lease tests without production data.
+6. Extract the mock worker into a separate process and prove restart, duplicate-claim and stale-lease behavior.
+7. Prepare Exchange Online PowerShell typed adapters; keep all live cmdlets disabled until consent, custom RBAC, certificate and mailbox-create risk gates pass.
+8. Execute read-only non-production tenant validation only with an authorized identity and assignment manifest.
 
 ## Official evidence
 

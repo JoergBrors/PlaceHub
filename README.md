@@ -12,17 +12,17 @@
 ![Architecture](https://img.shields.io/badge/Architecture-Modular_Monolith-blue)
 ![Status](https://img.shields.io/badge/Status-Architecture_%26_Discovery-orange)
 
-The repository includes a local, offline .NET 10 Blazor proof of concept for UI-driven desk-pool and parking-resource administration. It performs no Microsoft 365 or Azure mutation. Run it with `dotnet run --project src/PlaceHub.Web` and validate it with `dotnet test PlaceHub.slnx`. See [UI-driven resource administration](Docs/ui-driven-resource-administration.md).
+The repository includes a .NET 10 Blazor proof of concept for UI-driven desk-pool and parking-resource administration. Normal runtime is live-first and fails closed until the approved Microsoft 365 configuration is complete; synthetic data is confined to the explicit `SyntheticTest` profile. Run it locally with the guarded Docker Compose procedure in [Local Docker live-first environment](Docs/local-docker-live-first.md), or use `dotnet run --project src/PlaceHub.Web --launch-profile SyntheticTest` for an explicit mock session. Validate it with `dotnet test PlaceHub.slnx`. See [UI-driven resource administration](Docs/ui-driven-resource-administration.md).
 
 The responsive enterprise shell, design tokens, booking calendar and accessibility conventions are documented in [UI design system](Docs/ui-design-system.md).
 
-Microsoft 365 Phase-2 adapters remain offline by default. Their supported read-only capabilities, permission matrix and activation gates are documented in [Microsoft 365 read-only readiness](Docs/microsoft365-readonly-readiness.md).
+Microsoft 365 Phase-2 adapters are live-first but remain unavailable until their permission, consent and tenant-capability gates are satisfied. Their supported read-only capabilities, permission matrix and activation gates are documented in [Microsoft 365 read-only readiness](Docs/microsoft365-readonly-readiness.md).
 
 The Phase-3 Office Management dashboard exposes authorized local mock requests at **Meine Aufträge**. Durable queue and isolated worker implementation are intentionally blocked pending the proposed [ADR-017](Docs/Adr/ADR-017-durable-provisioning-queue-and-worker-contract.md) and ADR-015 approval; see [Phase 3 readiness](Docs/phase3-worker-queue-readiness.md).
 
 ## VS Code debugging
 
-Open the repository root in VS Code, select **Run and Debug**, then start **PlaceHub Web (Development)** with `F5`. The browser opens the desk-pool page at `http://localhost:5000`. **PlaceHub Web (Production assets)** runs the regression-relevant Production configuration on port `5001`. Build, test and watch tasks are available through **Terminal → Run Task**.
+Open the repository root in VS Code, select **Run and Debug**, then start **PlaceHub Web (Development)** with `F5`. The browser opens at `https://localhost:3242`; normal development remains live-first and fails closed when required Microsoft 365 values are absent. Select **PlaceHub Web (SyntheticTest)** only for an explicitly synthetic session at `https://localhost:3243`. Build, test and watch tasks are available through **Terminal → Run Task**.
 
 ---
 
@@ -350,7 +350,7 @@ Potential later improvements:
 
 PlaceHub follows a documentation-driven engineering process.
 
-The current baseline accepts ADR-001, 002, 003, 009, 010, 012, 013, 014 and 016. ADR-004–008, 011 and 015 remain proposed pending Microsoft 365 capability, privacy, synchronization and privileged-operation decisions.
+The baseline includes the 2026-11-01 Project Owner approval for Live-First development reads, the isolated worker, single-instance durable development queue, Exchange Online PowerShell interface and worker-only Key Vault architecture. ADR-006 remains proposed for the parking mailbox model, ADR-008 remains proposed for visitor data, and effective permissions, consent, production data, mailbox creation and Terraform apply remain separately gated.
 
 **The accepted application scope is a local Docker/SQLite PoC with zero incremental Azure cost. Permissions, tenant mutations, privileged Exchange execution, paid services and production remain separately gated. ADR-016 continues to govern Terraform delivery only.**
 

@@ -1,11 +1,13 @@
 # ADR-010: Database and Persistence Strategy
 
-- **Status:** Accepted
+- **Status:** Accepted, amended for durable development queue
 - **Priority:** P1
 - **Date:** 2026-10-31
 - **Project:** PlaceHub – Workplace & Resource Management
 - **Approval date:** 2026-10-31
 - **Decision authority:** Project Owner approval
+- **Amendment date:** 2026-11-01
+- **Amendment authority:** Project Owner approval
 - **Governance:** Accepted for disposable local-PoC SQLite only; production provider requires an amendment
 
 ## Context
@@ -39,6 +41,11 @@ Hosting, Mandantenmodell, Datenmengen und SQL-Server/PostgreSQL-Betriebsrestrikt
 Der initiale PoC verwendet SQLite ausschließlich für synthetische, wegwerfbare Daten eines einzelnen Web-Containers. Die Datei liegt in einem benannten Docker Volume; EF-Core-Migrationen werden durch einen kontrollierten einmaligen Schritt ausgeführt, nicht unkontrolliert bei jedem App-Start. Production-PII, Scale-out und Network Filesystems sind ausgeschlossen. SQL Server versus PostgreSQL sowie eine explizite Schema-/Datenmigration bleiben die Produktionsentscheidung; Volume oder SQLite-Datei migrieren nicht automatisch in Azure.
 
 ## Documentation Impact
+
+## Durable development queue amendment
+
+SQLite is accepted for the single-instance development request and execution queue defined by ADR-017, including immutable approved payload versions, leases, attempts, heartbeats, notifications and sanitized audit records. This does not approve production data, distributed workers, scale-out, production backup/RTO/RPO or a production persistence provider.
+
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 
 ## Open Questions / Approval Gates

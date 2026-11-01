@@ -1,10 +1,11 @@
 # ADR-011: Synchronization, Caching and Data Refresh
 
-- **Status:** Proposed (nicht genehmigt)
+- **Status:** Accepted for development live-read strategy
 - **Priority:** P1
 - **Date:** 2026-10-31
 - **Project:** PlaceHub – Workplace & Resource Management
-- **Decision owner:** Noch festzulegen
+- **Approval date:** 2026-11-01
+- **Decision authority:** Project Owner approval
 - **Governance:** New ADR Required; vor Annahme bestehende Repository-ADRs prüfen
 
 ## Context
@@ -40,7 +41,7 @@ Offline Graph-/Exchange-Mocks sind Test-Fixtures und müssen in Datenmodell, UI 
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 
-## Proposed Phase-2 read strategy (not approved)
+## Accepted Phase-2 read strategy
 
 Begin with on-demand Places and availability reads that display source and read timestamp. Do not add a live cache until TTL, invalidation, per-user/location isolation and stale-state UX have test evidence. Paging is bounded, cancellation is propagated and transient 429/503 retries honor bounded `Retry-After`. A cached Places record or free/busy result never becomes an authoritative booking or hierarchy copy.
 

@@ -1,11 +1,13 @@
 # ADR-013: Deployment and Hosting Strategy
 
-- **Status:** Accepted
+- **Status:** Accepted, amended for Worker Key Vault architecture
 - **Priority:** P1
 - **Date:** 2026-10-31
 - **Project:** PlaceHub – Workplace & Resource Management
 - **Approval date:** 2026-10-31
 - **Decision authority:** Project Owner approval
+- **Amendment date:** 2026-11-01
+- **Amendment authority:** Project Owner approval
 - **Governance:** Accepted for the local-first initial PoC; cloud hosting requires an amendment
 
 ## Context
@@ -41,6 +43,11 @@ Der initiale PoC läuft mit Docker Compose auf einem lokalen Entwicklerhost und 
 Der privilegierte Exchange-Worker läuft weder im Webcontainer noch zunächst als Sidecar. Ein gehärteter lokaler Windows-Prozess wird vor einem Linux-Worker-Container geprüft. Key Vault und dedizierter Azure-Worker bleiben kosten- und hostingpflichtige Approval Gates.
 
 ## Documentation Impact
+
+## Worker Key Vault amendment
+
+A dedicated development Azure Key Vault is accepted as the target certificate store for the isolated provisioning worker and may be managed through the existing Terraform root after exact naming, network, worker workload identity, cost and policy values are reviewed. Only the worker workload identity may receive `Key Vault Secrets User`. The entire Blazor web process, frontend identity, Office Management users, PlaceHub administrators and Terraform delivery identity receive no Key Vault data-plane access. Terraform never manages private certificate material. Resource creation, cost commitment and role assignment execution remain separate apply gates.
+
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 
 ## Open Questions / Approval Gates

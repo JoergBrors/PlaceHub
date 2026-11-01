@@ -1,28 +1,28 @@
 {
-  "status": "PENDING_PROJECT_OWNER_AND_SECURITY_APPROVAL",
+  "status": "ARCHITECTURE_APPROVED_EXECUTION_GATED",
   "environment": "development",
   "tenant_id": null,
   "permission_manifest": "development-m365-permissions.json",
   "approved_permission_names": [],
   "adr_decisions": {
-    "ADR-004": "PENDING",
-    "ADR-005": "PENDING",
+    "ADR-004": "ACCEPTED_DEVELOPMENT_READS",
+    "ADR-005": "ACCEPTED_READ_HIERARCHY",
     "ADR-006": "PENDING",
-    "ADR-007": "PENDING",
-    "ADR-009-live-first-amendment": "PENDING",
-    "ADR-013-key-vault-cost-amendment": "PENDING",
-    "ADR-015": "PENDING",
-    "ADR-017": "PENDING"
+    "ADR-007": "ACCEPTED_READ_ONLY_AVAILABILITY",
+    "ADR-009-live-first-amendment": "ACCEPTED",
+    "ADR-013-key-vault-cost-amendment": "ARCHITECTURE_ACCEPTED_APPLY_GATED",
+    "ADR-015": "ACCEPTED_DEVELOPMENT_ARCHITECTURE",
+    "ADR-017": "ACCEPTED_SINGLE_INSTANCE_DEVELOPMENT"
   },
   "web_credential_strategy": "PENDING",
-  "exchange_interface": "PENDING",
+  "exchange_interface": "EXCHANGE_ONLINE_POWERSHELL",
   "worker_runtime_principal_object_id": null,
   "worker_host": "PENDING",
   "key_vault_network_model": "PENDING",
   "key_vault_cost_approved": false,
   "admin_consent_approved": false,
   "terraform_apply_approved": false,
-  "approved_by": null,
-  "approved_at": null,
-  "approval_reference": null
+  "approved_by": "Project Owner",
+  "approved_at": "2026-11-01",
+  "approval_reference": "Project Owner architecture approval in repository task record"
 }

@@ -27,11 +27,15 @@ try {
     if ($policy.applications.'azuread_application.placehub_web'.redirect_uris.Count -ne 1 -or $policy.applications.'azuread_application.placehub_web'.redirect_uris[0] -ne 'https://localhost:8443/signin-oidc') { Stop-Safe 'REDIRECT_URI_MISMATCH' }
     if ($policy.applications.'azuread_application.placehub_web'.required_resource_access.Count -ne 0) { Stop-Safe 'UNAPPROVED_PERMISSION_DECLARATION_PRESENT' }
     if ($terraform -match 'Place\.Read|Calendars\.Read|Place\.ReadWrite|Calendars\.ReadWrite') { Stop-Safe 'UNAPPROVED_TERRAFORM_PERMISSION_PRESENT' }
-    if ($settings.Microsoft365.Mode -ne 'OfflineMock') { Stop-Safe 'OFFLINE_DEFAULT_NOT_ENFORCED' }
-    if ($settings.Microsoft365.AllowSyntheticData -ne $true) { Stop-Safe 'SYNTHETIC_PROFILE_NOT_EXPLICIT' }
+    if ($settings.Microsoft365.Mode -ne 'Microsoft365ReadOnly') { Stop-Safe 'LIVE_FIRST_DEFAULT_NOT_ENFORCED' }
+    if ($settings.Microsoft365.AllowSyntheticData -ne $false) { Stop-Safe 'SYNTHETIC_DATA_ENABLED_IN_NORMAL_RUNTIME' }
+    $testSettingsPath = Join-Path $RepositoryRoot 'src/PlaceHub.Web/appsettings.SyntheticTest.json'
+    $testSettings = Get-Content -LiteralPath $testSettingsPath -Raw | ConvertFrom-Json
+    if ($testSettings.Microsoft365.Mode -ne 'OfflineMock' -or $testSettings.Microsoft365.AllowSyntheticData -ne $true) { Stop-Safe 'SYNTHETIC_TEST_PROFILE_INVALID' }
     Write-Status 'LOCAL_READINESS_OK'
     Write-Status 'PERMISSION_DECLARATIONS_EMPTY'
-    Write-Status 'OFFLINE_DEFAULT_CONFIRMED'
+    Write-Status 'LIVE_FIRST_DEFAULT_CONFIRMED'
+    Write-Status 'SYNTHETIC_TEST_PROFILE_ISOLATED'
 
     if (-not $InspectTenant) { Write-Status 'TENANT_INSPECTION_NOT_REQUESTED'; exit 0 }
     if (-not $ApproveReadOnlyTenantInspection) { Stop-Safe 'TENANT_INSPECTION_APPROVAL_REQUIRED' }

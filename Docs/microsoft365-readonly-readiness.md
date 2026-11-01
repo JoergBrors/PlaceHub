@@ -1,10 +1,10 @@
 # Microsoft 365 read-only readiness
 
-**Status:** Implementation-ready offline foundation. Live authentication, permissions, consent, licensing and test-tenant access are not approved or verified.
+**Status:** Live-First development architecture accepted; effective permissions, consent, credential and test-tenant access are not approved or verified.
 
 ## Architecture and mode boundary
 
-`Microsoft365:Mode` accepts `OfflineMock` (the checked-in default) or `Microsoft365ReadOnly`. Offline adapters contain no HTTP client and return deterministic synthetic records. Read-only adapters use only the allowlisted Microsoft Graph v1.0 Places GET endpoints and `POST /me/calendar/getSchedule`, whose POST semantics are read-only. No create, update, delete, event or booking-policy endpoint exists in the adapter contracts.
+`Microsoft365:Mode` accepts `Microsoft365ReadOnly` as the checked-in fail-closed normal default. `OfflineMock` is available only through the explicit `SyntheticTest` profile. Offline adapters contain no HTTP client and return deterministic synthetic records. Read-only adapters use only the allowlisted Microsoft Graph v1.0 Places GET endpoints and `POST /me/calendar/getSchedule`, whose POST semantics are read-only. No create, update, delete, event or booking-policy endpoint exists in the adapter contracts.
 
 `Microsoft365ReadOnly` fails at startup unless tenant/client identifiers, an approved confidential-client credential provider, permission approval, verified consent and tenant-capability evidence are all present. The repository deliberately configures `CredentialProvider=None`; therefore live mode cannot currently start. A mock identity is independently rejected by live authorization before token acquisition. Live errors never fall back to mock data.
 
@@ -31,8 +31,8 @@ Microsoft Graph resource app ID is `00000003-0000-0000-c000-000000000000`.
 | Use case | Operation | Permission / immutable delegated ID | Consent | Resource/app authorization | ADR / approval |
 |---|---|---|---|---|---|
 | Optional profile | OIDC claims or `GET /me` if proven necessary | `User.Read` / `e1fe6dd8-ba31-4d61-89e7-88639da4683d` | normally user; tenant policy may differ | valid tenant/audience; app role | Proposed; not declared or approved |
-| Places hierarchy | typed Places list/descendants | `Place.Read.All` / `cb8f45a0-5c2e-4ea1-b803-84b870a7d7ec` | admin required | PlaceHub role plus assigned building/location | ADR-004/005 Proposed; not declared/consented |
-| Free/busy | `POST /me/calendar/getSchedule` | `Calendars.ReadBasic` / `662d75ba-a364-42ad-adee-f5f880ea4878` | normally no admin; tenant policy may differ | PlaceHub role, location and explicit mailbox allowlist | ADR-004/007 Proposed; not declared/consented |
+| Places hierarchy | typed Places list/descendants | `Place.Read.All` / `cb8f45a0-5c2e-4ea1-b803-84b870a7d7ec` | admin required | PlaceHub role plus assigned building/location | Architecture accepted; not declared/consented |
+| Free/busy | `POST /me/calendar/getSchedule` | `Calendars.ReadBasic` / `662d75ba-a364-42ad-adee-f5f880ea4878` | normally no admin; tenant policy may differ | PlaceHub role, location and explicit mailbox allowlist | Architecture accepted; not declared/consented |
 | Places administration | write endpoints | `Place.ReadWrite.All` / `4c06a06a-098a-4063-868e-5dfee3827264` | admin required plus documented Places/Exchange roles | privileged workflow | Deferred and prohibited in this phase |
 | Booking/cancel | calendar event write | `Calendars.ReadWrite` / `1ec239c2-d7c9-4623-a91a-a9775856bb36` | tenant policy dependent | organizer/resource policy | Deferred and prohibited in this phase |
 
@@ -51,9 +51,9 @@ The Terraform policy and application resource remain unchanged with `required_re
 
 ## Readiness tool
 
-`scripts/Test-Microsoft365Readiness.ps1` defaults to local repository inspection and performs no network call. It verifies exact callbacks, empty Terraform permission declarations and the OfflineMock default. Optional tenant inspection requires both `-InspectTenant` and `-ApproveReadOnlyTenantInspection`, exact tenant/application GUIDs, existing Azure CLI authentication and tenant match. It performs only a constrained Graph GET and never infers consent from declaration.
+`scripts/Test-Microsoft365Readiness.ps1` defaults to local repository inspection and performs no network call. It verifies exact callbacks, empty Terraform permission declarations, the Live-First default and isolated SyntheticTest profile. Optional tenant inspection requires both `-InspectTenant` and `-ApproveReadOnlyTenantInspection`, exact tenant/application GUIDs, existing Azure CLI authentication and tenant match. It performs only a constrained Graph GET and never infers consent from declaration.
 
-## ADR review proposals (not accepted)
+## Recorded ADR scope
 
 - **ADR-004:** approve v1.0 typed Places reads and delegated getSchedule behind ports; prohibit silent mock fallback and all writes in read-only mode.
 - **ADR-005:** approve native Place IDs/parent IDs as the hierarchy and unknown/null workspace properties rather than inferred values.

@@ -1,11 +1,12 @@
 # ADR-015: Administrative Provisioning and Privileged Operations
 
-- **Status:** Proposed (nicht genehmigt)
+- **Status:** Accepted for development isolated-worker architecture
 - **Priority:** P0
 - **Date:** 2026-10-31
 - **Project:** PlaceHub – Workplace & Resource Management
-- **Decision owner:** Noch festzulegen
-- **Governance:** New ADR Required; vor Annahme bestehende Repository-ADRs prüfen
+- **Approval date:** 2026-11-01
+- **Decision authority:** Project Owner approval
+- **Governance:** Isolated worker, Exchange Online PowerShell and worker-only Key Vault accepted; effective privilege remains gated
 
 ## Context
 Gebäude-, Desk- oder Mailbox-Provisionierung kann erhöhte Rechte erfordern, ohne dass Office Manager diese direkt besitzen sollen.
@@ -35,7 +36,7 @@ ADR-004, ADR-009, ADR-012.
 Negativtests müssen insbesondere Web-zu-Provisioning-Eskalation, nicht freigegebene Cmdlets/Parameter und Zugriffe auf nicht markierte Mailboxen abweisen.
 Konkrete Create-/Update-Operationen, Role Assignments, Scopes und Rückabwicklung verifizieren.
 
-## Proposed identity refinement (not approved)
+## Accepted identity refinement
 `placehub-m365-provisioning-development` ist eine isolierte app-only Identität. `Exchange.ManageAsApp` kommt nur für den nachgewiesenen PowerShell-Verwaltungsweg zusammen mit minimaler Exchange Custom RBAC Role und Resource Scope infrage; Exchange Administrator und eine Wiederverwendung durch Web- oder Terraform-Workflows sind ausgeschlossen.
 
 Die vorgeschlagene Authentifizierung verwendet ein CSP-basiertes exportierbares RSA-Zertifikat und niemals einen Client Secret; CNG ist für diesen Exchange-CBA-Pfad ausgeschlossen. Ein typisierter Adapter ruft ausschließlich `Connect-ExchangeOnline`, die freigegebenen Mailbox-/CalendarProcessing-Cmdlets und `Disconnect-ExchangeOnline` in einem separaten Worker auf. Key Vault ist optional und kostenpflichtig; der private Schlüssel darf nur für die notwendige `X509Certificate2`-Nutzung kurzzeitig im Worker-Speicher vorliegen. Details und Restprivilegien stehen in `../exchange-provisioning-architecture.md`.
@@ -47,7 +48,7 @@ Im Windows-Zertifikatsspeicher darf der CSP-basierte private Schlüssel zur Lauf
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 
-## Proposed UI-driven workflow amendment (not approved)
+## Accepted UI-driven workflow amendment
 
 Office/Location Managers submit location-bound typed requests; a PlaceHub System Administrator may approve and trigger eligible operations without holding an Exchange administrator role. Approval does not grant Microsoft 365 access. A separately authenticated worker revalidates request version, approval, location, idempotency and fixed operation/parameter policy before execution. The state model is Draft, Submitted, AwaitingApproval, Approved, Rejected, Running, PendingPropagation, Succeeded, Failed, PartiallyConfigured and RequiresReconciliation. Approved payloads are immutable, approval replay is rejected and arbitrary PowerShell input is impossible. Narrow automatic approval remains disabled until a separate operation policy is accepted.
 
@@ -57,7 +58,7 @@ The offline POC implements this shape with an in-process mock adapter only; it h
 - Gibt es bereits akzeptierte ADRs oder technische Vorgaben im Repository, die dieser Entscheidung widersprechen?
 - Sind relevante Microsoft-365-Funktionen, API-Versionen, Berechtigungen und Lizenzbedingungen für den vorgesehenen Tenant geprüft?
 - Ist der vorgeschlagene Umfang für das MVP angemessen?
-- **Approval gate:** Entscheidung bleibt bis zur expliziten Architekturfreigabe `Proposed`.
+- Effective Graph/Exchange permission, consent, custom RBAC, certificate enrollment, exact operation allowlists and mailbox-create residual risk remain separate security gates.
 
 ## References
 - Projektquelle: `PlaceHub_Project_Prompt.md` (vom Nutzer bereitgestellt; Anforderungen, ADR-Index und Zielarchitektur).

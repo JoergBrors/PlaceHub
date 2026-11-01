@@ -11,6 +11,6 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /app ./
 USER app
-ENV ASPNETCORE_HTTP_PORTS=8080
-EXPOSE 8080
+ENV ASPNETCORE_HTTPS_PORTS=8443
+EXPOSE 8443
 ENTRYPOINT ["dotnet", "PlaceHub.Web.dll"]

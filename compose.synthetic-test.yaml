@@ -1,0 +1,13 @@
+services:
+  placehub-web:
+    environment:
+      DOTNET_ENVIRONMENT: SyntheticTest
+      ASPNETCORE_ENVIRONMENT: SyntheticTest
+      Microsoft365__Mode: OfflineMock
+      Microsoft365__AllowSyntheticData: "true"
+      Microsoft365__TenantId: ""
+      Microsoft365__ClientId: ""
+      Microsoft365__CredentialProvider: None
+      Microsoft365__PermissionsApproved: "false"
+      Microsoft365__ConsentVerified: "false"
+      Microsoft365__TenantCapabilityVerified: "false"

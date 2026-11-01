@@ -1,11 +1,12 @@
 # ADR-007: Parking Reservations and Consistency
 
-- **Status:** Proposed (nicht genehmigt)
+- **Status:** Accepted for read-only availability; booking writes remain proposed
 - **Priority:** P0
 - **Date:** 2026-10-31
 - **Project:** PlaceHub – Workplace & Resource Management
-- **Decision owner:** Noch festzulegen
-- **Governance:** New ADR Required; vor Annahme bestehende Repository-ADRs prüfen
+- **Approval date:** 2026-11-01
+- **Decision authority:** Project Owner approval
+- **Governance:** getSchedule availability accepted; create/cancel semantics remain gated
 
 ## Context
 Zwischen Verfügbarkeitsabfrage und Buchung können konkurrierende Anforderungen entstehen.
@@ -42,7 +43,7 @@ Lokale Mocks müssen Pending/Accepted/Declined/Unknown und verzögerte beziehung
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 
-## Proposed Phase-2 availability amendment (not approved)
+## Accepted Phase-2 availability amendment
 
 Delegated Microsoft Graph v1.0 `getSchedule` with least-privileged `Calendars.ReadBasic` is the proposed read-only availability boundary. PlaceHub supplies only explicitly authorized resource mailbox addresses and a bounded time interval/time zone, maps free/busy/unknown without appointment subjects and never interprets a free result as a reservation. Missing permission, mailbox, tenant capability, timeout or ambiguous state stays explicit and never falls back silently to mock data.
 
@@ -50,7 +51,7 @@ Delegated Microsoft Graph v1.0 `getSchedule` with least-privileged `Calendars.Re
 - Gibt es bereits akzeptierte ADRs oder technische Vorgaben im Repository, die dieser Entscheidung widersprechen?
 - Sind relevante Microsoft-365-Funktionen, API-Versionen, Berechtigungen und Lizenzbedingungen für den vorgesehenen Tenant geprüft?
 - Ist der vorgeschlagene Umfang für das MVP angemessen?
-- **Approval gate:** Entscheidung bleibt bis zur expliziten Architekturfreigabe `Proposed`.
+- `Calendars.ReadWrite`, booking/cancellation operations and test-tenant consent remain separate gates.
 
 ## References
 - Projektquelle: `PlaceHub_Project_Prompt.md` (vom Nutzer bereitgestellt; Anforderungen, ADR-Index und Zielarchitektur).

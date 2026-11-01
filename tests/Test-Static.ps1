@@ -80,12 +80,17 @@ Assert-True ($adrIndex -match '\[016\].*\| Accepted \(amended\) \|') 'ADR index 
 foreach ($adrNumber in @('001','002','003','009','010','012','013','014')) {
     $adr = Get-Content -Raw (Join-Path $root "Docs/Adr/ADR-$adrNumber-*.md")
     Assert-True ($adr -match '\*\*Status:\*\* Accepted' -and $adr -match '\*\*Approval date:\*\* 2026-10-31' -and $adr -match '\*\*Decision authority:\*\* Project Owner approval') "ADR-$adrNumber acceptance metadata is inconsistent."
-    Assert-True ($adrIndex -match "\[$adrNumber\].*\| Accepted \|") "ADR index does not mark ADR-$adrNumber Accepted."
+    Assert-True ($adrIndex -match "\[$adrNumber\].*\| Accepted") "ADR index does not mark ADR-$adrNumber Accepted."
 }
-foreach ($adrNumber in @('004','005','006','007','008','011','015')) {
+foreach ($adrNumber in @('004','005','007','011','015','017')) {
+    $adr = Get-Content -Raw (Join-Path $root "Docs/Adr/ADR-$adrNumber-*.md")
+    Assert-True ($adr -match '\*\*Status:\*\* Accepted' -and $adr -match '\*\*Approval date:\*\* 2026-11-01' -and $adr -match '\*\*Decision authority:\*\* Project Owner approval') "ADR-$adrNumber scoped acceptance metadata is inconsistent."
+    Assert-True ($adrIndex -match "\[$adrNumber\].*\| Accepted") "ADR index does not mark ADR-$adrNumber Accepted."
+}
+foreach ($adrNumber in @('006','008')) {
     $adr = Get-Content -Raw (Join-Path $root "Docs/Adr/ADR-$adrNumber-*.md")
     Assert-True ($adr -match '\*\*Status:\*\* Proposed') "ADR-$adrNumber was accepted despite an unresolved material decision."
-    Assert-True ($adrIndex -match "\[$adrNumber\].*\| Proposed \|") "ADR index does not mark ADR-$adrNumber Proposed."
+    Assert-True ($adrIndex -match "\[$adrNumber\].*\| Proposed") "ADR index does not mark ADR-$adrNumber Proposed."
 }
 Assert-True ($identityArchitecture -match 'Do not create `placehub-backend-development`' -and $identityArchitecture -match 'Terraform deployment application remains unchanged') 'Identity separation decision is incomplete.'
 foreach ($permissionId in @(

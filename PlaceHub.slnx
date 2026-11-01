@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="src/PlaceHub.Core/PlaceHub.Core.csproj" />
   <Project Path="src/PlaceHub.Web/PlaceHub.Web.csproj" />
+  <Project Path="src/PlaceHub.Worker/PlaceHub.Worker.csproj" />
   <Project Path="tests/PlaceHub.Core.Tests/PlaceHub.Core.Tests.csproj" />
 </Solution>

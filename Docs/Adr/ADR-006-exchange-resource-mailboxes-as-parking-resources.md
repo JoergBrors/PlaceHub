@@ -1,6 +1,6 @@
 # ADR-006: Exchange Resource Mailboxes as Parking Resources
 
-- **Status:** Proposed (nicht genehmigt)
+- **Status:** Proposed; Exchange Online PowerShell worker interface accepted
 - **Priority:** P0
 - **Date:** 2026-10-31
 - **Project:** PlaceHub – Workplace & Resource Management
@@ -48,7 +48,12 @@ Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Des
 
 Parking and desk-pool provisioning are distinct typed workflows. Parking retains Equipment Mailbox as candidate and Room Mailbox as a test alternative; desk pools use the separately proposed Room-to-Workspace process. UI actions create approved requests only. Disable is reversible, deletion is excluded, and Exchange calendar state remains authoritative. Automatic mailbox creation stays blocked until security explicitly accepts the residual organization-wide create capability, approved SMTP/naming/type templates, immediate scope marking, quarantine on partial failure and reconciliation.
 
+## Accepted interface boundary (2026-11-01)
+
+Project Owner approval selects Exchange Online PowerShell in the isolated worker as the development provisioning interface. This does not select Equipment versus Room Mailbox, authorize `New-Mailbox`, accept organization-wide residual create privilege, grant `Exchange.ManageAsApp`, approve consent or permit a tenant mutation.
+
 ## Open Questions / Approval Gates
+
 - Gibt es bereits akzeptierte ADRs oder technische Vorgaben im Repository, die dieser Entscheidung widersprechen?
 - Sind relevante Microsoft-365-Funktionen, API-Versionen, Berechtigungen und Lizenzbedingungen für den vorgesehenen Tenant geprüft?
 - Ist der vorgeschlagene Umfang für das MVP angemessen?

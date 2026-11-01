@@ -1,11 +1,12 @@
 # ADR-004: Microsoft Graph Integration Strategy
 
-- **Status:** Proposed (nicht genehmigt)
+- **Status:** Accepted for development live-read architecture; write permissions remain proposed
 - **Priority:** P0
 - **Date:** 2026-10-31
 - **Project:** PlaceHub – Workplace & Resource Management
-- **Decision owner:** Noch festzulegen
-- **Governance:** New ADR Required; vor Annahme bestehende Repository-ADRs prüfen
+- **Approval date:** 2026-11-01
+- **Decision authority:** Project Owner approval
+- **Governance:** Graph v1.0 reads and Exchange Online PowerShell boundary accepted; effective permissions and writes remain gated
 
 ## Context
 Places- und Exchange-Funktionen sind nicht notwendigerweise durch dieselbe API und denselben Berechtigungskontext zugänglich.
@@ -44,15 +45,15 @@ For the local PoC, Graph and Exchange adapters are offline mocks by default. EWS
 ## Documentation Impact
 Bei Freigabe Solution Architecture, Capability Matrix, Security-/Integration-Design, Betriebs- und Testdokumentation entsprechend aktualisieren. Konkrete Repository-Pfade vor Änderungen verifizieren.
 
-## Proposed Phase-2 read-only amendment (not approved)
+## Accepted Phase-2 read-only amendment
 
-Use Microsoft Graph v1.0 typed Places list/descendant endpoints for Building, Floor, Section, Workspace and Desk reads, and delegated `getSchedule` only for advisory free/busy. Adapters expose domain records rather than Graph SDK types, accept only allowlisted endpoints and never silently replace a live failure with mock data. OfflineMock remains the checked-in default. Microsoft365ReadOnly requires valid tenant identity, application role, location assignment, delegated scope and target-resource authorization. No write endpoint is part of read-only mode.
+Use Microsoft Graph v1.0 typed Places list/descendant endpoints for Building, Floor, Section, Workspace and Desk reads, and delegated `getSchedule` only for advisory free/busy. Normal runtime is fail-closed Live-First; OfflineMock is limited to an explicit synthetic test profile. Microsoft365ReadOnly requires valid tenant identity, application role, location assignment, delegated scope and target-resource authorization. No write endpoint is approved by this read-only decision.
 
 ## Open Questions / Approval Gates
 - Gibt es bereits akzeptierte ADRs oder technische Vorgaben im Repository, die dieser Entscheidung widersprechen?
 - Sind relevante Microsoft-365-Funktionen, API-Versionen, Berechtigungen und Lizenzbedingungen für den vorgesehenen Tenant geprüft?
 - Ist der vorgeschlagene Umfang für das MVP angemessen?
-- **Approval gate:** Entscheidung bleibt bis zur expliziten Architekturfreigabe `Proposed`.
+- Graph/Exchange permission declarations, effective consent, calendar writes and tenant tests require separate authorization.
 
 ## References
 - Projektquelle: `PlaceHub_Project_Prompt.md` (vom Nutzer bereitgestellt; Anforderungen, ADR-Index und Zielarchitektur).

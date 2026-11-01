@@ -1,11 +1,12 @@
 # ADR-005: Microsoft Places Data Model and Hierarchy
 
-- **Status:** Proposed (nicht genehmigt)
+- **Status:** Accepted for native development read hierarchy; provisioning method unresolved
 - **Priority:** P0
 - **Date:** 2026-10-31
 - **Project:** PlaceHub – Workplace & Resource Management
-- **Decision owner:** Noch festzulegen
-- **Governance:** New ADR Required; vor Annahme bestehende Repository-ADRs prüfen
+- **Approval date:** 2026-11-01
+- **Decision authority:** Project Owner approval
+- **Governance:** Native IDs and hierarchy accepted; mutation interface remains gated
 
 ## Context
 Geschäftliche Begriffe wie Desk Pool müssen auf das tatsächliche Microsoft-Places-Modell abgebildet werden.
@@ -52,7 +53,7 @@ For Phase 2, native Graph `placeId`/`parentId` values are the proposed read hier
 - Gibt es bereits akzeptierte ADRs oder technische Vorgaben im Repository, die dieser Entscheidung widersprechen?
 - Sind relevante Microsoft-365-Funktionen, API-Versionen, Berechtigungen und Lizenzbedingungen für den vorgesehenen Tenant geprüft?
 - Ist der vorgeschlagene Umfang für das MVP angemessen?
-- **Approval gate:** Entscheidung bleibt bis zur expliziten Architekturfreigabe `Proposed`.
+- Workspace creation/conversion, write permission, licensing and test-tenant evidence remain approval gates.
 
 ## References
 - Projektquelle: `PlaceHub_Project_Prompt.md` (vom Nutzer bereitgestellt; Anforderungen, ADR-Index und Zielarchitektur).

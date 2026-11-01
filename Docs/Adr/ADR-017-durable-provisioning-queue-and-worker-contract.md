@@ -1,17 +1,18 @@
 # ADR-017: Durable Provisioning Queue and Worker Contract
 
-- **Status:** Proposed (nicht genehmigt)
+- **Status:** Accepted for single-instance development
 - **Priority:** P0
 - **Date:** 2026-11-01
 - **Project:** PlaceHub – Workplace & Resource Management
-- **Decision owner:** Project Owner
-- **Governance:** Required before durable queue or isolated worker implementation
+- **Approval date:** 2026-11-01
+- **Decision authority:** Project Owner approval
+- **Governance:** Development request/execution contract accepted; production persistence and live privileges remain gated
 
 ## Context
 
 PlaceHub already models version-bound administrative requests and an offline mock execution in the web process. Phase 3 requires durable claims, leases, retries, heartbeats, reconciliation and a separately hosted privileged worker. ADR-010 permits disposable single-instance SQLite data, but does not decide queue concurrency or worker trust. ADR-015 remains proposed.
 
-## Proposed decision
+## Decision
 
 For the local single-instance PoC, store business requests, immutable approved payload versions, technical executions, leases, attempts, heartbeats, notifications and sanitized audits in SQLite. Use transactional compare-and-set claims with one active lease per execution, bounded retries and explicit reconciliation. Keep business request state separate from technical execution state.
 

@@ -157,6 +157,10 @@ Before workflow implementation or live use, prove with synthetic plans and provi
 7. Retain explicit authorization for production environment creation/boundary and destructive production plans; ordinary in-boundary create/update then follows this ADR.
 8. Define audited incident/state-recovery procedures that cannot bypass classification.
 
+## Development architecture inventory amendment — 2026-11-01
+
+Project Owner architecture approval expands the prospective development inventory to a dedicated Worker Key Vault and the exact worker-only `Key Vault Secrets User` assignment, managed by the existing Terraform root. It does not approve an unknown principal, network design, cost-incurring apply, certificate content, secret/certificate Terraform resource, Graph/Exchange consent or role assignment execution. The active policy may be expanded only after exact vault name, resource group, worker principal, network boundary and nonsecret outputs are reviewable. Any access removal remains destructive; unknown or out-of-policy plans fail closed.
+
 ## References
 
 - [HashiCorp Terraform JSON output format](https://developer.hashicorp.com/terraform/internals/json-format)

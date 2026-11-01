@@ -166,12 +166,16 @@ function Test-ApplicationPolicy {
 }
 
 function Test-ServicePrincipalPolicy {
-    param([object]$After)
-    if ($null -eq $After) { return $false }
-    if (@(Get-Array (Get-PropertyValue $After 'owners')).Count -lt 1) { return $false }
-    if ((Get-PropertyValue $After 'app_role_assignment_required') -ne $true) { return $false }
-    foreach ($name in @('password','password_credentials','key_credentials','saml_single_sign_on')) {
-        if (@(Get-Array (Get-PropertyValue $After $name)).Count -gt 0) { return $false }
+    param([string]$Address, [object]$After)
+    if ($null -eq $After) { return (Set-FailedCheck "service_principal after_missing address=$Address") }
+    if (@(Get-Array (Get-PropertyValue $After 'owners')).Count -lt 1) { return (Set-FailedCheck "service_principal owners address=$Address") }
+    if ((Get-PropertyValue $After 'app_role_assignment_required') -ne $true) { return (Set-FailedCheck "service_principal app_role_assignment_required address=$Address") }
+    foreach ($name in @('password','password_credentials','key_credentials')) {
+        if (@(Get-Array (Get-PropertyValue $After $name)).Count -gt 0) { return (Set-FailedCheck "service_principal $name address=$Address") }
+    }
+    # The provider reads back an empty SAML block (empty relay state) for non-SAML principals; only configured SAML settings are rejected.
+    foreach ($saml in @(Get-Array (Get-PropertyValue $After 'saml_single_sign_on'))) {
+        if (-not [string]::IsNullOrEmpty([string](Get-PropertyValue $saml 'relay_state'))) { return (Set-FailedCheck "service_principal saml_single_sign_on address=$Address") }
     }
     return $true
 }
@@ -290,7 +294,7 @@ try {
                 $appPolicy = Get-PropertyValue $policy.applications $address
                 if (-not (Test-ApplicationPolicy $address $after $appPolicy)) { throw 'application policy mismatch' }
             }
-            elseif (-not (Test-ServicePrincipalPolicy $after)) { throw 'service principal policy mismatch' }
+            elseif (-not (Test-ServicePrincipalPolicy $address $after)) { throw 'service principal policy mismatch' }
         }
     }
 

@@ -60,6 +60,12 @@ try {
     Invoke-Case required-access-key-and-permission-order-insensitive @(New-Change azuread_application.placehub_web azuread_application @('create') $null $terraformOrdered) CREATE_ONLY
     $prov = [ordered]@{ display_name='placehub-m365-provisioning-development'; sign_in_audience='AzureADMyOrg'; fallback_public_client_enabled=$false; owners=@('synthetic-owner'); app_role=@(); required_resource_access=@(); web=@(@{ homepage_url=''; logout_url=''; redirect_uris=@(); implicit_grant=@() }) }
     Invoke-Case provisioning-empty-string-urls-equal-unset @(New-Change azuread_application.m365_provisioning azuread_application @('no-op') $prov $prov) NO_CHANGE
+    $spState = @{ owners=@('synthetic-owner'); app_role_assignment_required=$true; saml_single_sign_on=@(@{ relay_state='' }); key_credentials=@(); password_credentials=@() }
+    Invoke-Case sp-empty-saml-block-equals-unset @(New-Change azuread_service_principal.placehub_web azuread_service_principal @('no-op') $spState $spState) NO_CHANGE
+    $spSaml = @{ owners=@('synthetic-owner'); app_role_assignment_required=$true; saml_single_sign_on=@(@{ relay_state='synthetic-relay-state' }) }
+    Invoke-Case sp-configured-saml-rejected @(New-Change azuread_service_principal.placehub_web azuread_service_principal @('update') $spState $spSaml) UNKNOWN_OR_UNVERIFIABLE 1 'synthetic-relay-state'
+    $spKey = @{ owners=@('synthetic-owner'); app_role_assignment_required=$true; key_credentials=@(@{ key_id='synthetic-key' }) }
+    Invoke-Case sp-credential-rejected @(New-Change azuread_service_principal.placehub_web azuread_service_principal @('update') $spState $spKey) UNKNOWN_OR_UNVERIFIABLE 1 'synthetic-key'
     $provBad = [ordered]@{} + $prov; $provBad.web = @(@{ homepage_url='https://synthetic.invalid/'; logout_url=''; redirect_uris=@(); implicit_grant=@() })
     Invoke-Case provisioning-unexpected-homepage-rejected @(New-Change azuread_application.m365_provisioning azuread_application @('update') $prov $provBad) UNKNOWN_OR_UNVERIFIABLE 1 'synthetic.invalid'
     $badRra = New-WebAfter

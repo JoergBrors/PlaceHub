@@ -109,45 +109,53 @@ function Test-ExactSet {
     return -not (Compare-Object -ReferenceObject $expectedStrings -DifferenceObject $actualStrings)
 }
 
+$script:FailedPolicyCheck = $null
+# Records only a fixed check name (never a value) so a policy mismatch is diagnosable from sanitized CI output.
+function Set-FailedCheck {
+    param([string]$Name)
+    $script:FailedPolicyCheck = $Name
+    return $false
+}
+
 function Test-ApplicationPolicy {
     param([string]$Address, [object]$After, [object]$ApplicationPolicy)
-    if ($null -eq $After) { return $false }
-    if ((Get-PropertyValue $After 'display_name') -ne $ApplicationPolicy.display_name) { return $false }
-    if ((Get-PropertyValue $After 'sign_in_audience') -ne $ApplicationPolicy.sign_in_audience) { return $false }
-    if ((Get-PropertyValue $After 'fallback_public_client_enabled') -eq $true) { return $false }
-    if (@(Get-Array (Get-PropertyValue $After 'owners')).Count -lt 1) { return $false }
+    if ($null -eq $After) { return (Set-FailedCheck 'after_missing') }
+    if ((Get-PropertyValue $After 'display_name') -ne $ApplicationPolicy.display_name) { return (Set-FailedCheck 'display_name') }
+    if ((Get-PropertyValue $After 'sign_in_audience') -ne $ApplicationPolicy.sign_in_audience) { return (Set-FailedCheck 'sign_in_audience') }
+    if ((Get-PropertyValue $After 'fallback_public_client_enabled') -eq $true) { return (Set-FailedCheck 'fallback_public_client') }
+    if (@(Get-Array (Get-PropertyValue $After 'owners')).Count -lt 1) { return (Set-FailedCheck 'owners') }
     if (@(Get-Array (Get-PropertyValue $After 'password')).Count -gt 0 -or
         @(Get-Array (Get-PropertyValue $After 'password_credentials')).Count -gt 0 -or
-        @(Get-Array (Get-PropertyValue $After 'key_credentials')).Count -gt 0) { return $false }
+        @(Get-Array (Get-PropertyValue $After 'key_credentials')).Count -gt 0) { return (Set-FailedCheck 'credentials_present') }
 
     $web = Get-PropertyValue $After 'web'
     if ($web -is [System.Collections.IList]) { $web = @($web) | Select-Object -First 1 }
     $actualRedirects = if ($null -eq $web) { @() } else { Get-Array (Get-PropertyValue $web 'redirect_uris') }
-    if (-not (Test-ExactSet $actualRedirects (Get-Array $ApplicationPolicy.redirect_uris))) { return $false }
+    if (-not (Test-ExactSet $actualRedirects (Get-Array $ApplicationPolicy.redirect_uris))) { return (Set-FailedCheck 'redirect_uris') }
     $actualHomepage = if ($null -eq $web) { $null } else { Get-PropertyValue $web 'homepage_url' }
     $actualLogout = if ($null -eq $web) { $null } else { Get-PropertyValue $web 'logout_url' }
-    if ($actualHomepage -ne $ApplicationPolicy.homepage_url -or $actualLogout -ne $ApplicationPolicy.logout_url) { return $false }
+    if ($actualHomepage -ne $ApplicationPolicy.homepage_url -or $actualLogout -ne $ApplicationPolicy.logout_url) { return (Set-FailedCheck 'homepage_or_logout') }
     if ($null -ne $web) {
         $implicitGrant = Get-PropertyValue $web 'implicit_grant'
         if ($implicitGrant -is [System.Collections.IList]) { $implicitGrant = @($implicitGrant) | Select-Object -First 1 }
         if ($null -ne $implicitGrant -and
             ((Get-PropertyValue $implicitGrant 'access_token_issuance_enabled') -eq $true -or
-             (Get-PropertyValue $implicitGrant 'id_token_issuance_enabled') -eq $true)) { return $false }
+             (Get-PropertyValue $implicitGrant 'id_token_issuance_enabled') -eq $true)) { return (Set-FailedCheck 'implicit_grant') }
     }
 
     $expectedRoles = @{}
     foreach ($property in $ApplicationPolicy.app_roles.PSObject.Properties) { $expectedRoles[$property.Name] = [string]$property.Value }
     $actualRoles = @(Get-Array (Get-PropertyValue $After 'app_role'))
-    if ($actualRoles.Count -ne $expectedRoles.Count) { return $false }
+    if ($actualRoles.Count -ne $expectedRoles.Count) { return (Set-FailedCheck 'app_role_count') }
     foreach ($role in $actualRoles) {
         $value = [string](Get-PropertyValue $role 'value')
-        if (-not $expectedRoles.ContainsKey($value) -or [string](Get-PropertyValue $role 'id') -ne $expectedRoles[$value]) { return $false }
-        if (-not [bool](Get-PropertyValue $role 'enabled')) { return $false }
-        if (-not (Test-ExactSet (Get-Array (Get-PropertyValue $role 'allowed_member_types')) @('User'))) { return $false }
+        if (-not $expectedRoles.ContainsKey($value) -or [string](Get-PropertyValue $role 'id') -ne $expectedRoles[$value]) { return (Set-FailedCheck 'app_role_id_or_value') }
+        if (-not [bool](Get-PropertyValue $role 'enabled')) { return (Set-FailedCheck 'app_role_disabled') }
+        if (-not (Test-ExactSet (Get-Array (Get-PropertyValue $role 'allowed_member_types')) @('User'))) { return (Set-FailedCheck 'app_role_member_types') }
     }
 
     $actualAccess = @(Get-Array (Get-PropertyValue $After 'required_resource_access'))
-    if (-not (Test-ExactSet ($actualAccess | ForEach-Object { ConvertTo-StableItem $_ }) (Get-Array $ApplicationPolicy.required_resource_access | ForEach-Object { ConvertTo-StableItem $_ }))) { return $false }
+    if (-not (Test-ExactSet ($actualAccess | ForEach-Object { ConvertTo-StableItem $_ }) (Get-Array $ApplicationPolicy.required_resource_access | ForEach-Object { ConvertTo-StableItem $_ }))) { return (Set-FailedCheck 'required_resource_access') }
     return $true
 }
 
@@ -300,6 +308,7 @@ catch {
         default { 'INPUT_UNVERIFIABLE' }
     }
     Write-Output "TERRAFORM_PLAN_POLICY_REASON: $safeReason"
+    if ($script:FailedPolicyCheck) { Write-Output "TERRAFORM_PLAN_POLICY_CHECK: $script:FailedPolicyCheck" }
     if ($safeReason -eq 'VALUE_UNKNOWN' -and $script:UnknownRootSummary) {
         Write-Output "TERRAFORM_PLAN_UNKNOWN_FIELD: $script:UnknownRootSummary"
     }

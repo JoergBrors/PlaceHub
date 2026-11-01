@@ -315,7 +315,19 @@ function Prepare-Consent {
 "@
     New-Item -ItemType Directory -Path $ReportDirectory -Force | Out-Null
     $p = Join-Path $ReportDirectory 'consent-request.md'; Protect-Text $text | Set-Content -LiteralPath $p -Encoding utf8NoBOM
-    Res 'prepare.consent' 'OK' "written to $p" 'Administrator approval and action'
+    $booking = @"
+# Booking write consent request (NOT EXECUTED, NOT AUTHORIZED)
+
+- Application: $FrontendName ($(if ($f.Ok) { Hide-Id $f.App.appId } else { 'id unavailable' }))
+- Permission: Microsoft Graph delegated Calendars.ReadWrite (1ec239c2-d7c9-4623-a91a-a9775856bb36). Microsoft documents AdminConsentRequired = No; the tenant consent policy decides whether users may consent, so a tenant-wide administrator consent is requested for consistency with the read scopes.
+- Used for: creating, reading back and cancelling the signed-in organizer's own resource-booking events (POST /me/events, GET /me/events/{id}, POST /me/events/{id}/cancel). Fixed request bodies only.
+- Residual risk: Calendars.ReadWrite grants write access to ALL of the signed-in user's calendar events. No narrower delegated permission exists for creating events. Mitigations: fixed typed bodies, organizer-only cancel, no arbitrary Graph URLs, tests, closed application gates.
+- Preconditions (none met): ADR-007 booking semantics accepted; ADR-006 mailbox model accepted; Terraform declaration of the scope through the ADR-016 workflow (policy amendment, plan, apply); allowlist change in the web token provider.
+- Not requested: any application permission (Calendars.ReadWrite application role ef54d2bf-... is NOT part of this request), Calendars.ReadWrite.Shared, Place.ReadWrite.All on the web application.
+- Evidence after consent: oauth2PermissionGrants scope list (CheckBooking).
+"@
+    $pb = Join-Path $ReportDirectory 'consent-request-booking.md'; Protect-Text $booking | Set-Content -LiteralPath $pb -Encoding utf8NoBOM
+    Res 'prepare.consent' 'OK' "written to $p and $pb" 'Administrator approval and action (nothing was granted)'
 }
 function Prepare-RoleAssignment {
     $m = Get-Content -LiteralPath (Join-Path $root 'infrastructure/terraform/proposals/development-app-role-assignments.json') -Raw | ConvertFrom-Json
@@ -364,6 +376,25 @@ function Check-WorkerIdentity {
     $compose = Get-Content -LiteralPath (Join-Path $root 'compose.yaml') -Raw
     Res 'worker.disabled' $(if ($compose -match 'Worker__Enabled:\s*"false"') { 'OK' } else { 'FAIL' }) 'worker disabled by default in Compose'
     Res 'worker.rbac' 'NOT_TESTED' 'Exchange RBAC for Applications (TenantPlacesManagement, MailRecipient) is not assigned and its assignability is unproven' 'Security review; never granted by this script'
+}
+
+function Check-Booking {
+    $auth = Get-Content -LiteralPath (Join-Path $root 'src/PlaceHub.Web/Microsoft365Authentication.cs') -Raw
+    $program = Get-Content -LiteralPath (Join-Path $root 'src/PlaceHub.Web/Program.cs') -Raw
+    $compose = Get-Content -LiteralPath (Join-Path $root 'compose.yaml') -Raw
+    Res 'booking.tokenProviderRefusesWrite' $(if ($auth -notmatch 'Calendars\.ReadWrite') { 'OK' } else { 'FAIL' }) 'the web token provider allowlist does not contain Calendars.ReadWrite'
+    Res 'booking.gatesClosedByDefault' $(if (($program -match 'PlaceHub:Booking:WritesEnabled') -and ($compose -notmatch 'Booking:WritesEnabled:\s*"?true') -and ($compose -notmatch 'Booking__WritesEnabled:\s*"?true')) { 'OK' } else { 'FAIL' }) 'booking writes and delegated-scope approval default to false and Compose does not enable them'
+    $f = Get-App $FrontendName
+    if ($f.Ok) {
+        $declared = @($f.App.requiredResourceAccess | Where-Object resourceAppId -eq $GraphAppId | ForEach-Object { $_.resourceAccess } | ForEach-Object { $_.id })
+        Res 'booking.writeScopeDeclared' $(if ($declared -notcontains '1ec239c2-d7c9-4623-a91a-a9775856bb36') { 'OK' } else { 'WARN' }) $(if ($declared -notcontains '1ec239c2-d7c9-4623-a91a-a9775856bb36') { 'delegated Calendars.ReadWrite is not declared on the web application' } else { 'delegated Calendars.ReadWrite is declared' })
+        $sp = Get-Sp $f.App.appId
+        if ($sp) {
+            $g = Invoke-GraphGet "https://graph.microsoft.com/v1.0/oauth2PermissionGrants?`$filter=clientId eq '$($sp.id)'"
+            if ($g.Ok) { $scopes = @($g.Data.value | ForEach-Object { ($_.scope -split ' ') | Where-Object { $_ } }); Res 'booking.writeScopeConsent' $(if ($scopes -notcontains 'Calendars.ReadWrite') { 'BLOCKED' } else { 'OK' }) $(if ($scopes -notcontains 'Calendars.ReadWrite') { 'Calendars.ReadWrite is not consented, so no booking write can succeed' } else { 'Calendars.ReadWrite is consented' }) $(if ($scopes -notcontains 'Calendars.ReadWrite') { 'ADR-007 acceptance, then consent (see PrepareConsent)' } else { '' }) }
+        }
+    }
+    Res 'booking.exchangeAcceptance' 'NOT_TESTED' 'resource acceptance, decline and conflict handling were verified with synthetic responses only' 'A real, approved development booking with read-back'
 }
 
 function Check-ParkingMailboxes {
@@ -419,7 +450,7 @@ function Prepare-TerraformPlan { Res 'prepare.terraformPlan' 'INFO' 'run the Ter
 $script:Collected = [System.Collections.Generic.List[object]]::new()
 function Add-Results { param($Items) foreach ($i in @($Items)) { if ($null -ne $i) { $script:Collected.Add($i) } } }
 function Run-Status {
-    foreach ($fn in 'Check-Prerequisites', 'Check-AzureLogin', 'Check-Tenant', 'Check-GitHubAuth', 'Check-Repository', 'Check-ADRs', 'Check-EntraApplications', 'Check-AppRoles', 'Check-GraphPermissions', 'Check-ConsentStatus', 'Check-PlacesInventory', 'Check-ExchangeResources', 'Check-Certificates', 'Check-KeyVaultBoundary', 'Check-Terraform', 'Check-Docker') {
+    foreach ($fn in 'Check-Prerequisites', 'Check-AzureLogin', 'Check-Tenant', 'Check-GitHubAuth', 'Check-Repository', 'Check-ADRs', 'Check-EntraApplications', 'Check-AppRoles', 'Check-GraphPermissions', 'Check-ConsentStatus', 'Check-PlacesInventory', 'Check-ExchangeResources', 'Check-Certificates', 'Check-KeyVaultBoundary', 'Check-WorkerIdentity', 'Check-ParkingMailboxes', 'Check-Booking', 'Check-Terraform', 'Check-Docker') {
         try { Add-Results (& $fn) } catch { if ($_.Exception.PSObject.Properties['ExitName']) { Add-Results (Res $fn 'FAIL' $_.Exception.Message) } else { Add-Results (Res $fn 'FAIL' 'check failed unexpectedly') } }
     }
     Add-Results (Verify-LiveRead); Add-Results (Verify-LiveWrite)
@@ -458,6 +489,7 @@ $Commands = [ordered]@{
     DockerDown = @{ Class = 'LOCAL_MUTATION'; Info = 'docker compose down'; Run = { Add-Results (Do-DockerDown) } }
     CheckConsent = @{ Class = 'READ_ONLY'; Info = 'Alias of CheckConsentStatus'; Run = { Add-Results (Check-ConsentStatus) } }
     CheckWorkerIdentity = @{ Class = 'READ_ONLY'; Info = 'Worker identity separation, credentials, effective grants'; Run = { Add-Results (Check-WorkerIdentity) } }
+    CheckBooking = @{ Class = 'READ_ONLY'; Info = 'Booking gates, delegated write scope declaration and consent'; Run = { Add-Results (Check-Booking) } }
     CheckParkingMailboxes = @{ Class = 'READ_ONLY'; Info = 'Parking mailbox gates (never opens an Exchange session)'; Run = { Add-Results (Check-ParkingMailboxes) } }
     DiagnosePlacesHierarchy = @{ Class = 'READ_ONLY'; Info = 'Single-pass Places diagnosis through an existing Microsoft Graph PowerShell session (-PlaceId optional)'; Run = { Add-Results (Diagnose-PlacesHierarchy) } }
     ValidateTerraform = @{ Class = 'READ_ONLY'; Info = 'Alias of CheckTerraform'; Run = { Add-Results (Check-Terraform) } }

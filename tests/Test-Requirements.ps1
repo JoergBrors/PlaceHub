@@ -19,7 +19,7 @@ try {
 
     # --- help, command surface and exit-code documentation ---
     $help = (& pwsh -NoProfile -File $entry Help) -join "`n"; Assert-True ($LASTEXITCODE -eq $codes.SUCCESS) 'HELP_EXIT'
-    foreach ($command in 'Help','Status','CheckPrerequisites','CheckAzureLogin','CheckTenant','CheckGitHubAuth','CheckRepository','CheckADRs','CheckEntraApplications','CheckAppRoles','CheckGraphPermissions','CheckConsentStatus','CheckPlacesInventory','CheckExchangeResources','CheckCertificates','CheckKeyVaultBoundary','CheckTerraform','CheckDocker','Restore','Build','Test','TestSecurity','TestArchitecture','TestTerraformPolicy','ValidateCompose','DockerBuild','DockerUp','DockerDown','TerraformPlan','PrepareActivation','PrepareConsent','PrepareRoleAssignment','PrepareBuildingBootstrap','VerifyLiveRead','VerifyLiveWrite','CheckConsent','CheckWorkerIdentity','CheckParkingMailboxes','DiagnosePlacesHierarchy','ValidateTerraform','PrepareTerraformPlan','PrepareRoleAssignments','PrepareParkingProvisioning','TestUi') {
+    foreach ($command in 'Help','Status','CheckPrerequisites','CheckAzureLogin','CheckTenant','CheckGitHubAuth','CheckRepository','CheckADRs','CheckEntraApplications','CheckAppRoles','CheckGraphPermissions','CheckConsentStatus','CheckPlacesInventory','CheckExchangeResources','CheckCertificates','CheckKeyVaultBoundary','CheckTerraform','CheckDocker','Restore','Build','Test','TestSecurity','TestArchitecture','TestTerraformPolicy','ValidateCompose','DockerBuild','DockerUp','DockerDown','TerraformPlan','PrepareActivation','PrepareConsent','PrepareRoleAssignment','PrepareBuildingBootstrap','VerifyLiveRead','VerifyLiveWrite','CheckConsent','CheckWorkerIdentity','CheckParkingMailboxes','DiagnosePlacesHierarchy','ValidateTerraform','PrepareTerraformPlan','PrepareRoleAssignments','PrepareParkingProvisioning','TestUi','CheckBooking') {
         Assert-True ($help -match "(?m)^$command\s") "COMMAND_MISSING_FROM_HELP $command"
     }
     foreach ($class in 'READ_ONLY','LOCAL_MUTATION','TENANT_MUTATION','PRIVILEGED_MUTATION','DESTRUCTIVE') { Assert-True ($help -match $class) "CLASS_MISSING $class" }
@@ -110,6 +110,17 @@ try {
     $null = & pwsh -NoProfile -File $entry CheckParkingMailboxes -ReportDirectory $run; Assert-True ($LASTEXITCODE -eq $codes.SUCCESS) 'PARKING_CHECK_FAILED'
     $pm = ((Get-Content -LiteralPath (Join-Path $run 'requirements-status.json') -Raw | ConvertFrom-Json).results | Where-Object check -eq 'parking.exchangeInventory')
     Assert-True ($pm.status -eq 'NOT_TESTED') 'EXCHANGE_INVENTORY_CLAIMED_WITHOUT_SESSION'
+
+    # --- booking gates and consent preparation: static, never mutating, never granting ---
+    $null = & pwsh -NoProfile -File $entry CheckBooking -ReportDirectory $run 2>&1
+    $b = ((Get-Content -LiteralPath (Join-Path $run 'requirements-status.json') -Raw | ConvertFrom-Json).results)
+    Assert-True (($b | Where-Object check -eq 'booking.tokenProviderRefusesWrite').status -eq 'OK') 'BOOKING_TOKEN_PROVIDER_ALLOWS_WRITE'
+    Assert-True (($b | Where-Object check -eq 'booking.gatesClosedByDefault').status -eq 'OK') 'BOOKING_GATES_NOT_CLOSED'
+    Assert-True (($b | Where-Object check -eq 'booking.exchangeAcceptance').status -eq 'NOT_TESTED') 'BOOKING_ACCEPTANCE_CLAIMED'
+    $null = & pwsh -NoProfile -File $entry PrepareConsent -ReportDirectory $run 2>&1
+    $consent = Get-Content -LiteralPath (Join-Path $run 'consent-request-booking.md') -Raw
+    foreach ($needle in '1ec239c2-d7c9-4623-a91a-a9775856bb36', 'NOT EXECUTED', 'ALL of the signed-in user', 'ef54d2bf') { Assert-True ($consent.Contains($needle)) "BOOKING_CONSENT_REQUEST_INCOMPLETE $needle" }
+    Assert-True ($consent -notmatch '(?i)granted\b(?!\.)' -or $consent -match 'NOT EXECUTED') 'CONSENT_REQUEST_CLAIMS_GRANT'
 
     # --- existing test scripts are still present and untouched in purpose ---
     foreach ($existing in 'Test-Static.ps1','Test-DockerCompose.ps1','Test-Microsoft365Readiness.ps1','Test-TerraformPlanClassifier.ps1') { Assert-True (Test-Path -LiteralPath (Join-Path $root "tests/$existing")) "EXISTING_TEST_MISSING $existing" }

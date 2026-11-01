@@ -77,6 +77,7 @@ else
     builder.Services.AddAuthorization();
     builder.Services.AddSingleton<IDelegatedTokenProvider, UnavailableDelegatedTokenProvider>();
 }
+builder.Services.AddScoped<PlacesDiagnosticsService>();
 builder.Services.AddScoped(sp => CurrentActorContext.CreateForRequest(sp.GetRequiredService<IHttpContextAccessor>(), sp.GetRequiredService<IConfiguration>(), sp.GetRequiredService<Microsoft365Options>(), sp.GetService<Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider>()));
 if (microsoft365.Mode == IntegrationMode.OfflineMock)
 {

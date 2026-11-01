@@ -19,7 +19,7 @@ try {
 
     # --- help, command surface and exit-code documentation ---
     $help = (& pwsh -NoProfile -File $entry Help) -join "`n"; Assert-True ($LASTEXITCODE -eq $codes.SUCCESS) 'HELP_EXIT'
-    foreach ($command in 'Help','Status','CheckPrerequisites','CheckAzureLogin','CheckTenant','CheckGitHubAuth','CheckRepository','CheckADRs','CheckEntraApplications','CheckAppRoles','CheckGraphPermissions','CheckConsentStatus','CheckPlacesInventory','CheckExchangeResources','CheckCertificates','CheckKeyVaultBoundary','CheckTerraform','CheckDocker','Restore','Build','Test','TestSecurity','TestArchitecture','TestTerraformPolicy','ValidateCompose','DockerBuild','DockerUp','DockerDown','TerraformPlan','PrepareActivation','PrepareConsent','PrepareRoleAssignment','PrepareBuildingBootstrap','VerifyLiveRead','VerifyLiveWrite') {
+    foreach ($command in 'Help','Status','CheckPrerequisites','CheckAzureLogin','CheckTenant','CheckGitHubAuth','CheckRepository','CheckADRs','CheckEntraApplications','CheckAppRoles','CheckGraphPermissions','CheckConsentStatus','CheckPlacesInventory','CheckExchangeResources','CheckCertificates','CheckKeyVaultBoundary','CheckTerraform','CheckDocker','Restore','Build','Test','TestSecurity','TestArchitecture','TestTerraformPolicy','ValidateCompose','DockerBuild','DockerUp','DockerDown','TerraformPlan','PrepareActivation','PrepareConsent','PrepareRoleAssignment','PrepareBuildingBootstrap','VerifyLiveRead','VerifyLiveWrite','CheckConsent','CheckWorkerIdentity','CheckParkingMailboxes','DiagnosePlacesHierarchy','ValidateTerraform','PrepareTerraformPlan','PrepareRoleAssignments','PrepareParkingProvisioning') {
         Assert-True ($help -match "(?m)^$command\s") "COMMAND_MISSING_FROM_HELP $command"
     }
     foreach ($class in 'READ_ONLY','LOCAL_MUTATION','TENANT_MUTATION','PRIVILEGED_MUTATION','DESTRUCTIVE') { Assert-True ($help -match $class) "CLASS_MISSING $class" }
@@ -34,7 +34,7 @@ try {
 
     # --- source safety: no dynamic execution, no mutation verbs, no apply, no token extraction ---
     $source = (Get-Content -LiteralPath $entry -Raw) + (Get-Content -LiteralPath $modulePath -Raw)
-    foreach ($forbidden in 'Invoke-Expression','iex ','operation=apply','get-access-token','--method'', ''POST','--method'', ''PATCH','--method'', ''PUT','--method'', ''DELETE','credential reset','admin-consent','Connect-ExchangeOnline','Remove-Item','terraform'', ''apply','-auto-approve') {
+    foreach ($forbidden in 'Invoke-Expression','iex ','operation=apply','get-access-token','--method'', ''POST','--method'', ''PATCH','--method'', ''PUT','--method'', ''DELETE','credential reset','admin-consent','Connect-ExchangeOnline','Connect-MgGraph','Remove-Item','terraform'', ''apply','-auto-approve') {
         Assert-True (-not $source.Contains($forbidden)) "FORBIDDEN_CONSTRUCT $forbidden"
     }
     Assert-True (([regex]::Matches($source, "'operation=plan'")).Count -eq 1) 'TERRAFORM_PLAN_OPERATION_NOT_FIXED'
@@ -97,6 +97,19 @@ try {
     $liveWrite = (Get-Content -LiteralPath (Join-Path $run 'requirements-status.json') -Raw | ConvertFrom-Json).results | Where-Object check -eq 'live.write'
     Assert-True ($liveWrite.status -eq 'NOT_TESTED') 'LIVE_WRITE_CLAIMED_WITHOUT_EVIDENCE'
     foreach ($artifact in 'requirements-status.json', 'requirements-status.md') { Assert-True (Test-Path -LiteralPath (Join-Path $run $artifact)) "REPORT_MISSING $artifact" }
+
+    # --- Graph PowerShell reads are GET-only, places-only and never connect ---
+    foreach ($url in 'https://graph.microsoft.com/v1.0/users', 'https://graph.microsoft.com/beta/places', 'https://graph.microsoft.com/v1.0/places/../users', 'https://graph.microsoft.com/v1.0/places/x?$select=a;b') {
+        Assert-True ((Get-ExitName { Invoke-MgGet $url }) -eq 'SECURITY_BLOCKED') "MG_URL_ACCEPTED $url"
+    }
+    $null = & pwsh -NoProfile -File $entry DiagnosePlacesHierarchy -ReportDirectory $run -PlaceId 'a;calc' 2>&1; Assert-True ($LASTEXITCODE -ne 0) 'PLACEID_INJECTION_ACCEPTED'
+    $null = & pwsh -NoProfile -File $entry DiagnosePlacesHierarchy -ReportDirectory $run 2>&1; Assert-True ($LASTEXITCODE -eq $codes.SUCCESS) 'DIAGNOSE_WITHOUT_SESSION_SHOULD_REPORT_BLOCKED_NOT_FAIL'
+    $diag = ((Get-Content -LiteralPath (Join-Path $run 'requirements-status.json') -Raw | ConvertFrom-Json).results | Where-Object check -eq 'diagnose.outcome')
+    Assert-True ($null -ne $diag -and $diag.status -in 'BLOCKED', 'INFO') 'DIAGNOSE_OUTCOME_MISSING'
+    $null = & pwsh -NoProfile -File $entry PrepareParkingProvisioning -ReportDirectory $run; Assert-True ($LASTEXITCODE -eq $codes.SUCCESS -and (Test-Path -LiteralPath (Join-Path $run 'parking-provisioning-proposal.md'))) 'PARKING_PROPOSAL_NOT_WRITTEN'
+    $null = & pwsh -NoProfile -File $entry CheckParkingMailboxes -ReportDirectory $run; Assert-True ($LASTEXITCODE -eq $codes.SUCCESS) 'PARKING_CHECK_FAILED'
+    $pm = ((Get-Content -LiteralPath (Join-Path $run 'requirements-status.json') -Raw | ConvertFrom-Json).results | Where-Object check -eq 'parking.exchangeInventory')
+    Assert-True ($pm.status -eq 'NOT_TESTED') 'EXCHANGE_INVENTORY_CLAIMED_WITHOUT_SESSION'
 
     # --- existing test scripts are still present and untouched in purpose ---
     foreach ($existing in 'Test-Static.ps1','Test-DockerCompose.ps1','Test-Microsoft365Readiness.ps1','Test-TerraformPlanClassifier.ps1') { Assert-True (Test-Path -LiteralPath (Join-Path $root "tests/$existing")) "EXISTING_TEST_MISSING $existing" }

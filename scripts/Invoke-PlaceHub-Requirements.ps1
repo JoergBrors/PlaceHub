@@ -23,7 +23,8 @@ param(
     [string]$Operation,
     [string]$ApprovalEvidencePath,
     [switch]$EffectivePermissionsConfirmed,
-    [switch]$Watch
+    [switch]$Watch,
+    [ValidatePattern('^[A-Za-z0-9._-]{1,128}$')][string[]]$PlaceId = @()
 )
 
 Set-StrictMode -Version Latest
@@ -186,7 +187,7 @@ function Check-PlacesInventory {
     foreach ($t in $types) {
         $r = Invoke-GraphGet "https://graph.microsoft.com/v1.0/places/microsoft.graph.$t"
         if ($r.Ok) { Res "places.$t" 'OK' "$(@($r.Data.value).Count) item(s) visible to this identity" }
-        else { $blocked = $true; Res "places.$t" 'BLOCKED' $r.Reason 'The Azure CLI token has no Places read permission; run the inventory with Connect-MgGraph -Scopes Place.Read.All' }
+        else { $blocked = $true; Res "places.$t" 'BLOCKED' $r.Reason 'The Azure CLI token has no Places read permission; use DiagnosePlacesHierarchy from a Graph PowerShell session that has the Place.Read.All scope' }
     }
     if ($blocked) { Res 'places.inventoryComplete' 'BLOCKED' 'inventory is incomplete; an empty or failed read is not proof of absence' 'Complete inventory before the first write' }
 }
@@ -329,6 +330,71 @@ function Verify-LiveRead {
 }
 function Verify-LiveWrite { Res 'live.write' 'NOT_TESTED' 'no authorized Places write has been executed; read-after-write evidence is required' 'ADR acceptance, worker identity, permissions, Exchange RBAC and Terraform apply approvals' }
 
+
+function Check-WorkerIdentity {
+    $p = Get-App $ProvisioningName
+    if ($p.Ok) {
+        $secrets = @($p.App.passwordCredentials).Count; $certs = @($p.App.keyCredentials).Count; $perms = @($p.App.requiredResourceAccess).Count
+        Res 'worker.identitySeparate' 'OK' "provisioning app $(Hide-Id $p.App.appId) is distinct from the web app $(Hide-Id (Get-App $FrontendName).App.appId)"
+        Res 'worker.noSecret' $(if ($secrets -eq 0) { 'OK' } else { 'FAIL' }) "$secrets client secret(s)"
+        Res 'worker.credential' $(if ($certs -gt 0) { 'OK' } else { 'BLOCKED' }) "$certs registered certificate(s)" $(if ($certs -eq 0) { 'Worker certificate enrollment and registration (separate approval)' } else { '' })
+        Res 'worker.declaredPermissions' $(if ($perms -eq 0) { 'OK' } else { 'WARN' }) "$perms resource declaration(s); Place.ReadWrite.All is proposed only" 'Terraform policy amendment, plan, apply, consent (separate approvals)'
+        $sp = Get-Sp $p.App.appId
+        if ($sp) { $g = Invoke-GraphGet "https://graph.microsoft.com/v1.0/servicePrincipals/$($sp.id)/appRoleAssignments"; if ($g.Ok) { $n = @($g.Data.value).Count; Res 'worker.effectiveGrants' $(if ($n -eq 0) { 'OK' } else { 'WARN' }) "$n application permission grant(s) effective" } }
+    } else { Res 'worker.identity' 'BLOCKED' $p.Reason 'az login' }
+    $compose = Get-Content -LiteralPath (Join-Path $root 'compose.yaml') -Raw
+    Res 'worker.disabled' $(if ($compose -match 'Worker__Enabled:\s*"false"') { 'OK' } else { 'FAIL' }) 'worker disabled by default in Compose'
+    Res 'worker.rbac' 'NOT_TESTED' 'Exchange RBAC for Applications (TenantPlacesManagement, MailRecipient) is not assigned and its assignability is unproven' 'Security review; never granted by this script'
+}
+
+function Check-ParkingMailboxes {
+    Res 'parking.exchangeInventory' 'NOT_TESTED' 'this script never opens an Exchange session' 'Run interactively as an administrator: Get-EXOMailbox -RecipientTypeDetails EquipmentMailbox,RoomMailbox -ResultSize 50'
+    Res 'parking.mailboxTypeDecision' 'BLOCKED' 'ADR-006 has not selected Equipment versus Room; creation is refused while undecided' 'Project Owner decision'
+    Res 'parking.provisioningGates' 'BLOCKED' 'worker, MailboxCreationApproved, approved domain and name prefix, runner: all closed' 'See PrepareParkingProvisioning'
+}
+
+function Diagnose-PlacesHierarchy {
+    $types = 'building', 'floor', 'section', 'room', 'roomList', 'workspace', 'desk'
+    $listed = @{}; $blocked = $null
+    foreach ($t in $types) {
+        $r = Invoke-MgGet "https://graph.microsoft.com/v1.0/places/microsoft.graph.$t"
+        if ($r.Ok) { $listed[$t] = @($r.Data.value).Count; Res "diagnose.list.$t" 'OK' "$($listed[$t]) item(s) in the typed list" }
+        else { $blocked = $r.Reason; Res "diagnose.list.$t" 'BLOCKED' $r.Reason }
+    }
+    if ($blocked) { return Res 'diagnose.outcome' 'BLOCKED' "UNKNOWN: $blocked" 'Open a Microsoft Graph PowerShell session with the Place.Read.All scope in this terminal, then rerun (single pass, no polling)' }
+    $found = 0
+    foreach ($id in $PlaceId) {
+        $r = Invoke-MgGet "https://graph.microsoft.com/v1.0/places/$id"
+        if ($r.Ok) { $found++; Res "diagnose.byId.$(Hide-Id $id)" 'OK' "readable by id as $(([string]$r.Data.'@odata.type') -replace '^#microsoft\.graph\.','')" }
+        else { Res "diagnose.byId.$(Hide-Id $id)" 'WARN' $r.Reason }
+    }
+    $total = ($listed.Values | Measure-Object -Sum).Sum
+    $outcome = if ($found -gt 0 -and $listed['building'] -eq 0) { 'INCONSISTENT_DIRECTORY_STATE' } elseif ($found -gt 0) { 'RESOURCE_FOUND' } elseif ($total -eq 0) { 'VERIFIED_EMPTY' } else { 'RESOURCE_FOUND' }
+    Res 'diagnose.outcome' 'INFO' "$outcome (counts only; a propagation delay is not asserted without evidence from an earlier run)" $(if ($outcome -eq 'INCONSISTENT_DIRECTORY_STATE') { 'Cause unproven; do not create duplicates' } else { '' })
+}
+
+function Prepare-ParkingProvisioning {
+    New-Item -ItemType Directory -Path $ReportDirectory -Force | Out-Null
+    $text = @"
+# Parking provisioning activation package (NOT EXECUTED)
+
+Typed operations: DiscoverResourceMailbox, ImportExistingParkingResource, CreateParkingResource, UpdateParkingResource, ConfigureBookingPolicy, DisableParkingResource, VerifyProvisioningState, ReconcileParkingResource.
+Fixed cmdlets: Get-EXOMailbox, Get-CalendarProcessing, New-Mailbox (-Equipment or -Room), Set-Mailbox (DisplayName), Set-CalendarProcessing (policy template parameters). No Remove-*, no deletion.
+
+Open decisions and approvals (all required before any live use):
+1. ADR-006: mailbox type (Equipment or Room), exact naming rules (prefix, SMTP domain), disable semantics, booking policy templates.
+2. Security acceptance of the organization-wide New-Mailbox residual risk, or a documented safer alternative.
+3. Worker identity, certificate and Key Vault access (worker only); web has none.
+4. Exchange RBAC for Applications: assignability and scope unproven.
+5. A real, pinned ExchangeOnlineManagement runner after the clean-room proof.
+6. Terraform: policy amendment, exact plan, apply authorization.
+"@
+    $p = Join-Path $ReportDirectory 'parking-provisioning-proposal.md'; Protect-Text $text | Set-Content -LiteralPath $p -Encoding utf8NoBOM
+    Res 'prepare.parkingProvisioning' 'OK' "written to $p" 'All listed approvals'
+}
+
+function Prepare-TerraformPlan { Res 'prepare.terraformPlan' 'INFO' 'run the TerraformPlan command (dispatches the ADR-016 workflow with operation=plan only); review the sanitized classification before any apply request' 'Apply needs separate authorization' }
+
 # ---- orchestration ----------------------------------------------------
 
 $script:Collected = [System.Collections.Generic.List[object]]::new()
@@ -370,6 +436,14 @@ $Commands = [ordered]@{
     DockerBuild = @{ Class = 'LOCAL_MUTATION'; Info = 'docker compose build'; Run = { Add-Results (Do-DockerBuild) } }
     DockerUp = @{ Class = 'LOCAL_MUTATION'; Info = 'docker compose up -d (-DockerProfile Live|Synthetic)'; Run = { Add-Results (Do-DockerUp) } }
     DockerDown = @{ Class = 'LOCAL_MUTATION'; Info = 'docker compose down'; Run = { Add-Results (Do-DockerDown) } }
+    CheckConsent = @{ Class = 'READ_ONLY'; Info = 'Alias of CheckConsentStatus'; Run = { Add-Results (Check-ConsentStatus) } }
+    CheckWorkerIdentity = @{ Class = 'READ_ONLY'; Info = 'Worker identity separation, credentials, effective grants'; Run = { Add-Results (Check-WorkerIdentity) } }
+    CheckParkingMailboxes = @{ Class = 'READ_ONLY'; Info = 'Parking mailbox gates (never opens an Exchange session)'; Run = { Add-Results (Check-ParkingMailboxes) } }
+    DiagnosePlacesHierarchy = @{ Class = 'READ_ONLY'; Info = 'Single-pass Places diagnosis through an existing Microsoft Graph PowerShell session (-PlaceId optional)'; Run = { Add-Results (Diagnose-PlacesHierarchy) } }
+    ValidateTerraform = @{ Class = 'READ_ONLY'; Info = 'Alias of CheckTerraform'; Run = { Add-Results (Check-Terraform) } }
+    PrepareTerraformPlan = @{ Class = 'READ_ONLY'; Info = 'Explain the plan procedure; TerraformPlan dispatches it'; Run = { Add-Results (Prepare-TerraformPlan) } }
+    PrepareRoleAssignments = @{ Class = 'LOCAL_MUTATION'; Info = 'Alias of PrepareRoleAssignment'; Run = { Add-Results (Prepare-RoleAssignment) } }
+    PrepareParkingProvisioning = @{ Class = 'LOCAL_MUTATION'; Info = 'Write artifacts/parking-provisioning-proposal.md (nothing is executed)'; Run = { Add-Results (Prepare-ParkingProvisioning) } }
     TerraformPlan = @{ Class = 'READ_ONLY'; Info = 'Dispatch the ADR-016 plan workflow (operation=plan only; never apply)'; Run = { Add-Results (Do-TerraformPlan) } }
     PrepareActivation = @{ Class = 'READ_ONLY'; Info = 'Status report with remaining gates'; Run = { Prepare-Activation } }
     PrepareConsent = @{ Class = 'LOCAL_MUTATION'; Info = 'Write artifacts/consent-request.md (consent is not granted)'; Run = { Add-Results (Prepare-Consent) } }

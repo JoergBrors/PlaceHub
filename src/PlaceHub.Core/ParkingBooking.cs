@@ -58,6 +58,31 @@ public sealed class InMemoryReservationRepository : IReservationRepository
     public void Replace(ParkingReservation r) { lock (gate) if (items.ContainsKey(r.Id)) items[r.Id] = r; }
 }
 
+public static class BookingTimeZones
+{
+    /// <summary>Windows time zone ids are used on the wire; Linux containers may only know the IANA name.</summary>
+    public static TimeZoneInfo Find(string windowsId)
+    {
+        try { return TimeZoneInfo.FindSystemTimeZoneById(windowsId); }
+        catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException)
+        {
+            return windowsId switch
+            {
+                "W. Europe Standard Time" => TimeZoneInfo.FindSystemTimeZoneById("Europe/Berlin"),
+                "UTC" => TimeZoneInfo.Utc,
+                _ => throw new ValidationException("TIME_ZONE_NOT_ALLOWED")
+            };
+        }
+    }
+}
+
+public sealed class UnavailableBookingGraphClient : IBookingGraphClient
+{
+    public Task<string> CreateEventAsync(BookingEventSpec spec, CancellationToken cancellationToken) => throw new IntegrationConfigurationException("BOOKING_NOT_AVAILABLE");
+    public Task<BookingEventStatus?> GetEventAsync(string eventId, string resourceMailbox, CancellationToken cancellationToken) => throw new IntegrationConfigurationException("BOOKING_NOT_AVAILABLE");
+    public Task CancelEventAsync(string eventId, CancellationToken cancellationToken) => throw new IntegrationConfigurationException("BOOKING_NOT_AVAILABLE");
+}
+
 public sealed class GraphBookingClient(HttpClient http, IDelegatedTokenProvider tokens, Func<TimeSpan, CancellationToken, Task>? delay = null) : IBookingGraphClient
 {
     private static readonly IReadOnlySet<string> Scopes = new HashSet<string>(StringComparer.Ordinal) { "Calendars.ReadWrite" };
@@ -161,6 +186,9 @@ public sealed class ParkingReservationService(
         if (space.Status != ParkingStatus.Active) throw new WorkflowException("PARKING_SPACE_NOT_VERIFIED");
         var now = time.GetUtcNow();
         if (!options.AllowedTimeZones.Contains(timeZone, StringComparer.Ordinal)) throw new ValidationException("TIME_ZONE_NOT_ALLOWED");
+        var zone = BookingTimeZones.Find(timeZone);
+        // The wall-clock time sent to Graph is start.ToString(...); it is only correct if the offset is the zone's offset at that instant.
+        if (start.Offset != zone.GetUtcOffset(start) || end.Offset != zone.GetUtcOffset(end)) throw new ValidationException("TIME_ZONE_OFFSET_MISMATCH");
         if (end <= start || end - start > options.MaxDuration) throw new ValidationException("BOOKING_INTERVAL_INVALID");
         if (start < now || start - now > options.MaxLeadTime) throw new ValidationException("BOOKING_START_OUT_OF_WINDOW");
         if (repository.GetAll().Any(r => r.SpaceId == spaceId && r.State is ReservationState.Pending or ReservationState.Accepted or ReservationState.Unknown or ReservationState.RequiresReconciliation && start < r.End && r.Start < end))

@@ -1,0 +1,40 @@
+@page "/parkplatz-verwaltung"
+@inject ParkingService Parking
+@inject CurrentActorContext ActorContext
+@rendermode InteractiveServer
+<PageTitle>Parkplatz-Verwaltung · PlaceHub</PageTitle>
+<div class="page-heading"><div class="page-title"><span class="page-icon" aria-hidden="true">P</span><div><h1>Parkplatz-Verwaltung</h1><p>Geschäftsdaten zu Parkplätzen. Verfügbarkeit und Buchungen liegen ausschließlich im Exchange-Ressourcenpostfach.</p></div></div><StatusBadge Text="Provisionierung gesperrt" /></div>
+<div class="notice" role="status"><strong>Anträge ändern Exchange nicht direkt.</strong>Jeder Auftrag benötigt die Freigabe durch einen anderen System Administrator und wird vom isolierten Worker ausgeführt. Dieser Worker ist nicht aktiviert; das Anlegen neuer Postfächer ist zusätzlich gesperrt, bis Postfachtyp, Namensregeln und Restrisiko freigegeben sind.</div>
+@if(ActorContext.DenialCode is not null){<div class="notice" role="alert"><strong>Kein Zugriff</strong>@ActorContext.DenialCode</div>}
+else{
+<section class="surface"><h2>Vorhandenes Ressourcenpostfach registrieren</h2>
+ <EditForm Model="form" OnValidSubmit="Register"><div class="form-grid">
+  <label>Standort<select @bind="form.LocationId">@foreach(var location in ActorContext.Current.LocationIds.OrderBy(x=>x)){<option value="@location">@location</option>}</select></label>
+  <label>Postfachadresse<input @bind="form.Mailbox" maxlength="254" placeholder="parkplatz01@firma.example" /></label>
+  <label>Anzeigename<input @bind="form.DisplayName" maxlength="128" /></label>
+  <label>Kategorie<select @bind="form.Category">@foreach(var c in Enum.GetValues<ParkingCategory>()){<option value="@c">@CategoryLabel(c)</option>}</select></label>
+  <label><input type="checkbox" @bind="form.Accessible" /> Barrierefrei</label>
+  <label><input type="checkbox" @bind="form.EvCharging" /> Ladestation</label>
+ </div><button type="submit">Registrierung beantragen</button></EditForm>
+ @if(message is not null){<p class="notice" role="status">@message</p>}
+</section>
+<div class="table-wrap"><table><thead><tr><th>Parkplatz</th><th>Standort</th><th>Kategorie</th><th>Merkmale</th><th>Status</th><th>Sichere Diagnose</th><th>Aktion</th></tr></thead><tbody>
+@foreach(var space in Spaces){<tr><td><b>@space.DisplayName</b><small>@space.MailboxAddress</small></td><td>@space.LocationId</td><td>@CategoryLabel(space.Category)</td><td>@(space.Accessible?"Barrierefrei ":"")@(space.EvCharging?"Ladestation":"")</td><td><StatusBadge Text="@StatusLabel(space.Status)" /></td><td><code>@space.OutcomeCode</code></td>
+ <td><button class="ghost" @onclick="()=>RequestPolicy(space,StandardTemplate)">Richtlinie „standard“ beantragen</button><button class="ghost" @onclick="()=>RequestPolicy(space,RestrictedTemplate)">Richtlinie „restricted“ beantragen</button><button class="danger-button" @onclick="()=>RequestDisable(space)">Deaktivierung beantragen</button></td></tr>}
+</tbody></table></div>
+@if(!Spaces.Any()){<div class="empty"><h2>Noch keine Parkplätze</h2><p>Registrieren Sie ein vorhandenes Exchange-Ressourcenpostfach. Es wird erst nach der Verifikation durch den Worker als aktiv geführt.</p></div>}
+}
+@code {
+ private const string StandardTemplate="standard", RestrictedTemplate="restricted";
+ private string? message; private readonly FormModel form=new();
+ private IEnumerable<ParkingSpace> Spaces=>ActorContext.DenialCode is null?Parking.List(ActorContext.Current):[];
+ protected override void OnInitialized(){if(ActorContext.DenialCode is null)form.LocationId=ActorContext.Current.LocationIds.OrderBy(x=>x).FirstOrDefault()??"";}
+ private void Register(){Run(()=>{var (space,request)=Parking.RegisterExisting(ActorContext.Current,form.LocationId,form.Mailbox.Trim().ToLowerInvariant(),form.DisplayName.Trim(),form.Category,form.Accessible,form.EvCharging);return $"Registrierung {request.Id.ToString()[..8]} wartet auf Freigabe. Der Parkplatz gilt erst nach der Verifikation als aktiv.";});}
+ private void RequestPolicy(ParkingSpace space,string template){Run(()=>{var request=Parking.RequestBookingPolicy(ActorContext.Current,space.Id,template);return $"Richtlinienauftrag {request.Id.ToString()[..8]} wartet auf Freigabe.";});}
+ private void RequestDisable(ParkingSpace space){Run(()=>{var request=Parking.RequestDisable(ActorContext.Current,space.Id);return $"Deaktivierungsauftrag {request.Id.ToString()[..8]} wartet auf Freigabe. Die Semantik der Deaktivierung ist noch nicht entschieden; der Worker lehnt sie derzeit ab.";});}
+ private void Run(Func<string> action){try{message=action();}catch(WorkflowException ex){message=Friendly(ex.Code);}catch(IntegrationException ex){message=Friendly(ex.Code);}}
+ private static string Friendly(string code)=>code switch{"MAILBOX_ADDRESS_INVALID"=>"Die Postfachadresse ist ungültig.","PARKING_DISPLAY_NAME_INVALID"=>"Der Anzeigename ist ungültig.","PARKING_MAILBOX_ALREADY_REGISTERED"=>"Dieses Postfach ist bereits registriert.","LOCATION_OUT_OF_SCOPE"=>"Für diesen Standort besteht keine Berechtigung.","POLICY_TEMPLATE_NOT_ALLOWED"=>"Diese Richtlinienvorlage ist nicht erlaubt.",_=>$"Nicht möglich ({code})."};
+ private static string CategoryLabel(ParkingCategory c)=>c switch{ParkingCategory.Standard=>"Standard",ParkingCategory.Accessible=>"Barrierefrei",ParkingCategory.ElectricVehicle=>"Elektrofahrzeug",ParkingCategory.Visitor=>"Besucher",_=>"Reserviert"};
+ private static string StatusLabel(ParkingStatus s)=>s switch{ParkingStatus.PendingVerification=>"Verifikation ausstehend",ParkingStatus.Provisioning=>"Wird bereitgestellt",ParkingStatus.Active=>"Verfügbar",ParkingStatus.RequiresReconciliation=>"Abgleich erforderlich",ParkingStatus.Failed=>"Fehler",_=>"Deaktivierung beantragt"};
+ private sealed class FormModel{public string LocationId{get;set;}="";public string Mailbox{get;set;}="";public string DisplayName{get;set;}="";public ParkingCategory Category{get;set;}=ParkingCategory.Standard;public bool Accessible{get;set;}public bool EvCharging{get;set;}}
+}

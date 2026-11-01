@@ -27,7 +27,8 @@ public sealed class ParkingBookingTests
     private static Task<ParkingReservation> Book(ParkingReservationService s, Guid space, Actor? actor = null, int startHours = 2, int hours = 2, string key = "k1", string tz = "W. Europe Standard Time")
     {
         var a = actor ?? User();
-        return s.RequestAsync(a, Auth(a), space, Now.AddHours(startHours), Now.AddHours(startHours + hours), tz, key, default);
+        TimeZoneInfo zone; try { zone = BookingTimeZones.Find(tz); } catch (ValidationException) { zone = TimeZoneInfo.Utc; }
+        return s.RequestAsync(a, Auth(a), space, TimeZoneInfo.ConvertTime(Now.AddHours(startHours), zone), TimeZoneInfo.ConvertTime(Now.AddHours(startHours + hours), zone), tz, key, default);
     }
 
     // ---- gates and validation ------------------------------------------------
@@ -70,6 +71,15 @@ public sealed class ParkingBookingTests
         var (service, graph, availability, _, space) = Setup();
         Assert.Equal(code, (await Assert.ThrowsAsync<ValidationException>(() => Book(service, space, startHours: startHours, hours: hours, tz: tz))).Code);
         Assert.Equal(0, graph.Calls); Assert.Equal(0, availability.Calls);
+    }
+
+    [Fact]
+    public async Task AWallClockOffsetThatDoesNotMatchTheZoneIsRejectedBecauseGraphWouldReceiveTheWrongHour()
+    {
+        var (service, graph, _, _, space) = Setup();
+        var wrong = Now.AddHours(2).ToOffset(TimeSpan.FromHours(5));
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => service.RequestAsync(User(), Auth(User()), space, wrong, wrong.AddHours(2), "W. Europe Standard Time", "k-off", default));
+        Assert.Equal("TIME_ZONE_OFFSET_MISMATCH", ex.Code); Assert.Equal(0, graph.Calls);
     }
 
     [Fact]

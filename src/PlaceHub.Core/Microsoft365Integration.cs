@@ -83,7 +83,7 @@ public sealed record ReadAuthorizationContext(
     }
 }
 
-public sealed record PlaceRecord(string Id, string? ParentId, PlaceType Type, string DisplayName, int? Capacity, string? EmailAddress, string? OperationalState, string DataSource, DateTimeOffset ReadAt);
+public sealed record PlaceRecord(string Id, string? ParentId, PlaceType Type, string DisplayName, int? Capacity, string? EmailAddress, string? OperationalState, string DataSource, DateTimeOffset ReadAt, string? StablePlaceId = null, DateTimeOffset? SourceUpdatedAt = null);
 public sealed record PlacesSnapshot(IReadOnlyList<PlaceRecord> Places, string DataSource, DateTimeOffset ReadAt);
 public sealed record AvailabilityRequest(string LocationId, IReadOnlyList<string> ResourceMailboxes, DateTimeOffset Start, DateTimeOffset End, string WindowsTimeZone);
 public sealed record ResourceAvailability(string ResourceMailbox, AvailabilityState State, DateTimeOffset Start, DateTimeOffset End, string DataSource);
@@ -138,11 +138,11 @@ public sealed class GraphPlacesReader(HttpClient httpClient, IDelegatedTokenProv
     private static readonly IReadOnlySet<string> Scopes = new HashSet<string>(StringComparer.Ordinal) { "Place.Read.All" };
     private static readonly (PlaceType Type, string ODataType, string Select)[] Types =
     [
-        (PlaceType.Building,"microsoft.graph.building","id,placeId,displayName"),
-        (PlaceType.Floor,"microsoft.graph.floor","id,placeId,parentId,displayName"),
-        (PlaceType.Section,"microsoft.graph.section","id,placeId,parentId,displayName"),
-        (PlaceType.Workspace,"microsoft.graph.workspace","id,placeId,parentId,displayName,capacity,emailAddress"),
-        (PlaceType.Desk,"microsoft.graph.desk","id,placeId,parentId,displayName")
+        (PlaceType.Building,"microsoft.graph.building","id,placeId,displayName,lastUpdatedTime"),
+        (PlaceType.Floor,"microsoft.graph.floor","id,placeId,parentId,displayName,lastUpdatedTime"),
+        (PlaceType.Section,"microsoft.graph.section","id,placeId,parentId,displayName,lastUpdatedTime"),
+        (PlaceType.Workspace,"microsoft.graph.workspace","id,placeId,parentId,displayName,capacity,emailAddress,lastUpdatedTime"),
+        (PlaceType.Desk,"microsoft.graph.desk","id,placeId,parentId,displayName,lastUpdatedTime")
     ];
 
     public async Task<PlacesSnapshot> ReadHierarchyAsync(ReadAuthorizationContext authorization, CancellationToken cancellationToken)
@@ -159,19 +159,29 @@ public sealed class GraphPlacesReader(HttpClient httpClient, IDelegatedTokenProv
             var uri = new Uri($"places/{odata}?$select={select}", UriKind.Relative);
             await foreach (var item in ReadPagesAsync(uri, token, cancellationToken))
             {
-                var id = item.PlaceId ?? item.Id;
+                var id = item.Id ?? item.PlaceId;
                 if (string.IsNullOrWhiteSpace(id)) continue;
-                records.Add(new(id, item.ParentId, type, item.DisplayName ?? "Unbekannt", item.Capacity, item.EmailAddress ?? item.MailboxDetails?.EmailAddress, null, "Microsoft365ReadOnly", now));
+                records.Add(new(id, item.ParentId, type, item.DisplayName ?? "Unbekannt", item.Capacity, item.EmailAddress ?? item.MailboxDetails?.EmailAddress, null, "Microsoft365ReadOnly", now, item.PlaceId, item.LastUpdatedTime));
             }
         }
-        var allowed = FilterAuthorizedHierarchy(records, authorization.LocationIds);
+        var allowed = FilterAuthorizedHierarchy(NormalizeParents(records), authorization.LocationIds);
         runtime?.Success();
         return new(allowed, "Microsoft365ReadOnly", now);
     }
 
-    private static IReadOnlyList<PlaceRecord> FilterAuthorizedHierarchy(IReadOnlyList<PlaceRecord> records, IReadOnlySet<string> locations)
+    // Graph documents id as mutable and placeId as the stable identifier; parentId may reference either form.
+    internal static IReadOnlyList<PlaceRecord> NormalizeParents(IReadOnlyList<PlaceRecord> records)
     {
-        var allowedIds = new HashSet<string>(locations, StringComparer.OrdinalIgnoreCase); var changed = true;
+        var canonical = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in records) { canonical[r.Id] = r.Id; if (!string.IsNullOrWhiteSpace(r.StablePlaceId)) canonical.TryAdd(r.StablePlaceId, r.Id); }
+        return records.Select(r => r.ParentId is not null && canonical.TryGetValue(r.ParentId, out var parent) ? r with { ParentId = parent } : r).ToArray();
+    }
+
+    internal static IReadOnlyList<PlaceRecord> FilterAuthorizedHierarchy(IReadOnlyList<PlaceRecord> records, IReadOnlySet<string> locations)
+    {
+        var allowedIds = new HashSet<string>(locations, StringComparer.OrdinalIgnoreCase);
+        foreach (var r in records) if (r.Type == PlaceType.Building && r.StablePlaceId is not null && locations.Contains(r.StablePlaceId)) allowedIds.Add(r.Id);
+        var changed = true;
         while (changed) { changed = false; foreach (var record in records) if (record.ParentId is not null && allowedIds.Contains(record.ParentId) && allowedIds.Add(record.Id)) changed = true; }
         return records.Where(x => allowedIds.Contains(x.Id)).ToArray();
     }
@@ -214,7 +224,7 @@ public sealed class GraphPlacesReader(HttpClient httpClient, IDelegatedTokenProv
     }
 
     private sealed record GraphPage([property:JsonPropertyName("value")] GraphPlace[]? Value, [property:JsonPropertyName("@odata.nextLink")] string? NextLink);
-    private sealed record GraphPlace(string? Id, string? PlaceId, string? ParentId, string? DisplayName, int? Capacity, string? EmailAddress, MailboxDetails? MailboxDetails);
+    private sealed record GraphPlace(string? Id, string? PlaceId, string? ParentId, string? DisplayName, int? Capacity, string? EmailAddress, MailboxDetails? MailboxDetails, DateTimeOffset? LastUpdatedTime);
     private sealed record MailboxDetails(string? EmailAddress);
 }
 

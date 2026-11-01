@@ -38,9 +38,27 @@ function Get-Array {
     return @($Value)
 }
 
+function ConvertTo-CanonicalValue {
+    param([object]$Value)
+    if ($null -eq $Value -or $Value -is [string] -or $Value -is [ValueType]) { return $Value }
+    if ($Value -is [System.Collections.IDictionary] -or $Value -is [pscustomobject]) {
+        $entries = if ($Value -is [System.Collections.IDictionary]) { @($Value.GetEnumerator() | ForEach-Object { [pscustomobject]@{ Name = [string]$_.Key; Value = $_.Value } }) }
+                   else { @($Value.PSObject.Properties | ForEach-Object { [pscustomobject]@{ Name = $_.Name; Value = $_.Value } }) }
+        $ordered = [ordered]@{}
+        foreach ($entry in ($entries | Sort-Object Name -CaseSensitive)) { $ordered[$entry.Name] = ConvertTo-CanonicalValue $entry.Value }
+        return $ordered
+    }
+    if ($Value -is [System.Collections.IEnumerable]) {
+        $items = @($Value | ForEach-Object { ConvertTo-CanonicalValue $_ })
+        return , @($items | Sort-Object { $_ | ConvertTo-Json -Depth 40 -Compress } -CaseSensitive)
+    }
+    return $Value
+}
+
+# Terraform emits object keys alphabetically and sets in arbitrary order, so comparisons must not depend on either.
 function ConvertTo-StableItem {
     param([object]$Value)
-    return ($Value | ConvertTo-Json -Depth 40 -Compress)
+    return (ConvertTo-CanonicalValue $Value | ConvertTo-Json -Depth 40 -Compress)
 }
 
 function Test-CollectionRemoval {

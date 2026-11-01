@@ -35,6 +35,15 @@ public sealed class Microsoft365AuthenticationTests
     [Fact]
     public void MultipleRolesAreRejected() => Assert.Equal("APPLICATION_ROLE_AMBIGUOUS", Assert.Throws<IntegrationAuthorizationException>(() => Create([Claim("tid",Tenant),Claim("oid",Subject),Claim("roles","PlaceHub.OfficeManager"),Claim("roles","PlaceHub.SystemAdministrator")], new())).Code);
 
+    [Fact]
+    public void DeniedUserDoesNotCrashComponentConstructionAndFailsOnUse()
+    {
+        var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("tid",Tenant),new Claim("oid",Subject)],"test")) } };
+        var actor = CurrentActorContext.CreateForRequest(accessor, new ConfigurationBuilder().Build(), Options, null);
+        Assert.Equal("APPLICATION_ROLE_MISSING", actor.DenialCode);
+        Assert.Equal("APPLICATION_ROLE_MISSING", Assert.Throws<IntegrationAuthorizationException>(() => actor.Current).Code);
+    }
+
     private static CurrentActorContext Create((string Type,string Value)[] claims, Dictionary<string,string?> values)
     {
         var identity = new ClaimsIdentity(claims.Select(x=>new Claim(x.Type,x.Value)), "test", "name", "roles");

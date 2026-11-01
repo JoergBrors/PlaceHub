@@ -1,7 +1,7 @@
 # Microsoft 365 activation status
 
 **Assessment date:** 2026-11-01  
-**Status:** Prepared locally; activation blocked by explicit approval and environment prerequisites.
+**Status:** BLOCKED – application hardened and verified locally; tenant-side declaration, consent, role assignment and web credential outstanding.
 
 | Area | Current evidence | Status |
 |---|---|---|
@@ -37,3 +37,103 @@ The activation approval record must identify the exact tenant, accepted ADR deci
 6. Consent and app-role assignments remain separate administrator actions bound to reviewed manifests.
 7. Run read-only tenant verification, then positive and negative non-production live-read tests.
 8. Provisioning, Exchange RBAC, Key Vault access and worker execution remain disabled until their independent gates pass.
+
+## Independent review 2026-11-01 (tenant `db88f9b6…`, subscription `d6743694…`, Azure CLI user session)
+
+Azure CLI default context matches `.env` (tenant and subscription). Three further subscriptions in two other tenants are visible and were not touched. The default subscription was not changed. Tenant reads were Graph `GET` only.
+
+| Item | Desired (repo) | Actual (tenant) | State |
+|---|---|---|---|
+| `placehub-frontend-development` app (`0f8f167f…`) | exists, AzureADMyOrg | exists, AzureADMyOrg | VERIFIED_IN_TENANT |
+| App roles (3 stable IDs) | OfficeManager / LocationManager / SystemAdministrator | identical IDs | VERIFIED_IN_TENANT |
+| Redirect URIs | `:3242` + legacy `:8443` | identical | VERIFIED_IN_TENANT |
+| `required_resource_access` | `Calendars.ReadBasic` + `Place.Read.All` (Scope) | empty | BLOCKED_APPROVAL (Terraform apply) |
+| Permission IDs | `662d75ba…` (User consent), `cb8f45a0…` (Admin consent) | match Graph service principal | VERIFIED_IN_TENANT |
+| OAuth2 delegated grants | admin consent for `Place.Read.All` | none | BLOCKED_PERMISSION |
+| App-role assignments (enterprise app) | approved Office Manager principal | none (`appRoleAssignmentRequired=true`) | BLOCKED_APPROVAL |
+| Web client credential | public cert registered | no key or password credentials; no PFX in `PLACEHUB_TLS_DIRECTORY` | BLOCKED_CREDENTIAL |
+| Provisioning app (`9ee67623…`) | no permissions, no roles | none | VERIFIED_IN_TENANT |
+| Terraform delivery app | separate identity | separate; holds one Graph application role | VERIFIED_IN_TENANT |
+
+Declared, consented, assigned, token-scope and successful-Graph-request states are tracked separately; only the first exists in the repository, none exists effectively in the tenant. The `PLACEHUB_*_VERIFIED=true` lines in the local `.env` are not read by any code and are not evidence; they should be removed or set to `false`.
+
+### Defects fixed
+
+- `CurrentActorContext` read `HttpContext`, which is `null` inside a Blazor Server circuit after prerender; it now falls back to the circuit authentication state. An unauthorized user no longer crashes component construction: denial is deferred to `Current` and rendered as a 403 state (`/auth/denied`).
+- Graph Places keyed records by `placeId ?? id` while `parentId` references `id`. Records are now keyed by `id`, `placeId` is retained as the stable identifier, parents are normalized to either form, and `lastUpdatedTime` is carried as the source timestamp.
+- Dashboard showed static “verifiziert / Verbunden / Live” labels; they are now derived from runtime state.
+- Terraform plan classifier compared raw JSON strings of `required_resource_access`; Terraform emits keys alphabetically, so the first non-empty declaration was rejected as `APPLICATION_POLICY_MISMATCH` (workflow run `41288233698`, no apply, no change). Comparison is now canonical; regression case added.
+
+### Verification
+
+- `dotnet build -c Release` 0 warnings; 41 xUnit tests and all `tests/Test-*.ps1` pass (VERIFIED_LOCALLY).
+- `terraform fmt -check` and `validate` pass locally (VERIFIED_LOCALLY).
+- Docker: Live-First `placehub-web` fails closed with `CLIENT_CERTIFICATE_UNAVAILABLE` and no synthetic fallback; worker starts disabled with only the data volume mounted, no Docker socket, no published port (VERIFIED_LOCALLY).
+- Plan via ADR-016 workflow on `main` (pre-fix): `UNKNOWN_OR_UNVERIFIABLE`, apply not attempted. Re-plan on the fix branch was rejected by `development` environment protection (main only). Re-plan is NOT_TESTED until the fix is merged to `main`.
+- OIDC login, delegated token with `scp`, Places read, `getSchedule`: NOT_TESTED (blocked by the items above). No live success is claimed.
+
+### Remaining approval gates (in order)
+
+1. Review/merge `fix/live-read-hardening` into `main`; run workflow `operation=plan`; expect `UPDATE_ONLY` on `placehub_web` adding the two scopes; apply only after review (Project Owner).
+2. Application Administrator / Cloud Application Administrator or Global Administrator: admin consent for delegated `Place.Read.All` on `placehub-frontend-development` only.
+3. Enterprise application assignment of one approved user/group to exactly one PlaceHub role, plus the matching building Place ID in `PlaceHub:LocationAssignments:{oid}`.
+4. Confirm credential owner and authority, run `scripts/Initialize-LocalEntraCertificate.ps1`, register only the public `.cer` on the web app (the Terraform policy currently forbids `key_credentials`; registration needs an ADR-016 policy amendment or a documented out-of-band step).
+5. Ensure the approved identity has a mailbox/calendar and that resource mailboxes are readable for `getSchedule`.
+
+ADR classification: Existing ADR Applies (ADR-004/005/007/009/016); the credential-registration route in step 4 is ADR Review Required against ADR-016. Worker, Key Vault and Exchange RBAC gates are unchanged and untouched.
+
+## Gate-resolution pass (2026-11-01, second session)
+
+| Operation | Basis | Outcome |
+|---|---|---|
+| Branch diff review (`origin/main..fix/live-read-hardening`) | task instruction | 11 intended files only |
+| Pull request #1 opened into `main` | task instruction | OPEN; `main` has no branch protection and no configured required review or CI checks, so no authorized review path exists yet. Merge left to the Project Owner. |
+| Local `.env`: removed `PLACEHUB_PERMISSIONS_APPROVED`, `_CONSENT_VERIFIED`, `_TENANT_CAPABILITY_VERIFIED` | task instruction; grep proved no reader | done (file is git-ignored) |
+| Web certificate generation | `web_credential_strategy` is `PENDING` in the approval record | NOT executed (BLOCKED_APPROVAL) |
+| Entra credential registration | requires explicit approval and ADR-016 review (policy forbids `key_credentials`) | NOT executed |
+| Terraform re-plan | environment `development` accepts only `main` | NOT_TESTED until PR #1 is merged |
+| Consent policy read (`authorizationPolicy`) | read-only | User consent policies assigned: `microsoft-user-default-recommended`, `-allow-consent-apps`. Whether `Calendars.ReadBasic` qualifies as low-impact under them is not established; `Place.Read.All` is Admin-only regardless. Consent-request policy not readable with this identity (403). |
+
+Live validation (OIDC, `scp`, Places, `getSchedule`, negative cases) remains NOT_TESTED.
+
+## Identity, location and credential package (2026-11-01, third session) {#identity-location-credential-package}
+
+Project Owner selections authorize preparation and read-only discovery only. Nothing below was applied.
+
+### Read-only tenant evidence
+
+| Check | Result |
+|---|---|
+| Tenant | `db88f9b6…` matches `.env` – VERIFIED_IN_TENANT |
+| Test user | `joerg@brors.net`, Member, enabled; Object ID `d085818d-dc3f-4c0c-8b3d-970ad5477bf6` resolved via Graph `users` lookup and confirmed by `signed-in-user` (not inferred from the name) |
+| Enterprise app | SP `bac9ef95…`, client ID `0f8f167f…`, `appRoleAssignmentRequired=true` |
+| Role `PlaceHub.SystemAdministrator` | `9a3f940c-08c4-4bd7-8cfa-106eaab349a5`, `allowedMemberTypes=User`, enabled |
+| Current assignments | none (re-verified earlier this day; unchanged) |
+| Building discovery | **BUILDING_DISCOVERY_BLOCKED_PERMISSION**: Azure CLI Graph token is rejected (401) by `/places/microsoft.graph.building`. The CLI session is not the PlaceHub app and proves nothing about its grants. Unblock: after admin consent for `Place.Read.All`, sign in once as the user and read the Dashboard, or an administrator with Places read lists buildings and supplies the `placeId`. |
+| Tenant consent policy | `authorizationPolicy` readable: user-consent policies `microsoft-user-default-recommended` and `-allow-consent-apps`. Low-impact status of `Calendars.ReadBasic` under them is not established; consent-request policy returned 403 → **TENANT_CONSENT_POLICY_NOT_VERIFIED** |
+
+### Prepared (not applied)
+
+- Role assignment: `proposed_assignments[0]` in `infrastructure/terraform/proposals/development-app-role-assignments.json` (user → `PlaceHub.SystemAdministrator`, create). `effective_assignment_authorized=false`. An assignment does not grant a location.
+- Location assignment: key `PlaceHub:LocationAssignments:d085818d-…` (set through `PLACEHUB_USER_OBJECT_ID` / `PLACEHUB_LOCATION_PLACE_ID` in the git-ignored `.env`) stays **unset** until the Owner picks a building `placeId`. Code denies a user without a location (`LOCATION_ASSIGNMENT_MISSING`); `SystemAdministrator` is an application role only and never implies tenant-wide access.
+- Consent request: delegated `Place.Read.All` (Admin) for `placehub-frontend-development` only; no `Calendars.ReadWrite`, no application permissions.
+
+### Web certificate review (script `scripts/Initialize-LocalEntraCertificate.ps1`, NOT executed)
+
+RSA 3072, SHA-256, EKU clientAuth, CN `PlaceHub Development Web Authentication`, 180 days, PFX with empty password (acceptable only for a local read-only bind mount; the file ACL is the protection), `.cer` exported separately. The script now also restricts the PFX ACL to the current user on Windows (previously only `chmod` on Linux). .NET loads the PFX on Linux; the web container has no Key Vault access and the worker certificate is not reused. Rotation: regenerate ≥30 days before expiry, register the new `.cer`, then remove the old one. Runbook: generate → verify thumbprint/expiry → administrator registers `.cer` only → set `Microsoft365__ClientCertificates` path → restart web.
+
+### ADR-016 credential ownership assessment
+
+- Policy and classifier require **no** `key_credentials` on the web app; Terraform governance forbids certificate resources in the allowlist.
+- A. Terraform-managed public certificate (`azuread_application_certificate`): auditable, but needs allowlist, policy and classifier changes and an ADR-016 amendment. Rejected for now.
+- B. **Recommended:** administrator registers the public `.cer` outside Terraform. `azuread_application` does not reconcile credentials added this way, so no destructive plan is expected, but this must be proven: run `operation=plan` immediately after registration and confirm `NO_CHANGE` (the classifier's `key_credentials` check could otherwise trip on a computed attribute). Consequences: manual rotation with a recorded owner and expiry alert; credential is invisible to Terraform state.
+- C. No documented alternative exists in the repository.
+- Status: **ADR Review Required** (record approach B and the post-registration plan check in ADR-016; no policy change made). Registration is BLOCKED_APPROVAL.
+
+### Personal-data classification
+
+ADR-010 accepts SQLite for synthetic data only. The location mapping lives in configuration (`.env`), not SQLite, so nothing real is persisted in the database. Storing a real user Object ID in any database or tracked file needs **ADR Review Required** (ADR-009/010); the Object ID above is recorded here and in the proposal manifest as non-secret evidence only.
+
+### Final checklist
+
+User/OID verified; role verified; assignment PREPARED_NOT_APPLIED; building PENDING_OWNER_SELECTION; location PREPARED_NOT_APPLIED; certificate NOT_EXECUTED; registration BLOCKED_APPROVAL; plan NOT_TESTED (PR #1 unmerged; mergeable and clean, no required checks or reviews); apply NOT_EXECUTED; consent NOT_GRANTED; login, Places, `getSchedule` NOT_TESTED.

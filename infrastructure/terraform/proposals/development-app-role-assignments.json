@@ -1,10 +1,16 @@
 {
-  "status": "PENDING_ASSIGNMENT_APPROVAL",
+  "status": "PREPARED_NOT_APPLIED",
   "environment": "development",
   "target_enterprise_application": "placehub-frontend-development",
   "assignments": [],
   "effective_assignment_authorized": false,
-  "required_assignment_fields": ["principal_object_id", "principal_type", "app_role_value", "location_place_ids", "approval_reference"],
+  "required_assignment_fields": [
+    "principal_object_id",
+    "principal_type",
+    "app_role_value",
+    "location_place_ids",
+    "approval_reference"
+  ],
   "allowed_roles": {
     "PlaceHub.OfficeManager": "166b3fc4-fb93-401b-b856-bffa0d682447",
     "PlaceHub.LocationManager": "228e1fa0-cca2-4ac4-bc44-987ee444ba4c",
@@ -14,5 +20,23 @@
     "Assignments require exact explicitly approved user or group object IDs and matching server-side location Place IDs.",
     "An Enterprise Application role assignment does not itself grant access to every location.",
     "This manifest is not consumed by active Terraform and grants no role."
+  ],
+  "proposed_assignments": [
+    {
+      "tenant_id": "db88f9b6-c89a-41a3-a21d-b61458e234ff",
+      "environment": "development",
+      "target_service_principal_object_id": "bac9ef95-aee5-41aa-81ff-7d0dd2846ee8",
+      "target_application_client_id": "0f8f167f-fc12-4f32-b314-57e7e0a078f9",
+      "principal_object_id": "d085818d-dc3f-4c0c-8b3d-970ad5477bf6",
+      "principal_type": "User",
+      "principal_upn": "joerg@brors.net",
+      "app_role_value": "PlaceHub.SystemAdministrator",
+      "app_role_id": "9a3f940c-08c4-4bd7-8cfa-106eaab349a5",
+      "operation": "create",
+      "location_place_ids": [],
+      "location_status": "PENDING_OWNER_SELECTION",
+      "approval_status": "NOT_APPROVED_FOR_EXECUTION",
+      "evidence": "Docs/microsoft365-activation-status.md#identity-location-credential-package"
+    }
   ]
 }

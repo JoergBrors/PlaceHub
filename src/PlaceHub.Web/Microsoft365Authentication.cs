@@ -6,6 +6,21 @@ using PlaceHub.Core;
 
 namespace PlaceHub.Web;
 
+/// <summary>
+/// Entra claims arrive either with their short JWT names or, when inbound claim mapping is active, with long schema URIs.
+/// Both forms are accepted; the values come from the validated token either way.
+/// </summary>
+public static class EntraClaims
+{
+    public const string TenantUri = "http://schemas.microsoft.com/identity/claims/tenantid";
+    public const string ObjectIdUri = "http://schemas.microsoft.com/identity/claims/objectidentifier";
+
+    public static string? Tenant(ClaimsPrincipal principal) => principal.FindFirstValue("tid") ?? principal.FindFirstValue(TenantUri);
+    public static string? Subject(ClaimsPrincipal principal) => principal.FindFirstValue("oid") ?? principal.FindFirstValue(ObjectIdUri);
+    public static IEnumerable<string> Roles(ClaimsPrincipal principal) =>
+        principal.FindAll("roles").Concat(principal.FindAll("role")).Concat(principal.FindAll(ClaimTypes.Role)).Select(x => x.Value).Distinct(StringComparer.Ordinal);
+}
+
 public sealed class CurrentActorContext
 {
     private static readonly IReadOnlyDictionary<string, PlaceHubRole> Roles = new Dictionary<string, PlaceHubRole>(StringComparer.Ordinal)
@@ -49,10 +64,11 @@ public sealed class CurrentActorContext
         }
 
         if (principal.Identity?.IsAuthenticated != true) throw new IntegrationAuthorizationException("AUTHENTICATION_REQUIRED");
-        var tenant = principal.FindFirstValue("tid");
+        var tenant = EntraClaims.Tenant(principal);
+        if (string.IsNullOrWhiteSpace(tenant)) throw new IntegrationAuthorizationException("TENANT_CLAIM_MISSING");
         if (!string.Equals(tenant, options.TenantId, StringComparison.OrdinalIgnoreCase)) throw new IntegrationAuthorizationException("TENANT_MISMATCH");
-        var subject = principal.FindFirstValue("oid") ?? throw new IntegrationAuthorizationException("SUBJECT_ID_MISSING");
-        var roleValues = principal.FindAll("roles").Select(x => x.Value).Where(Roles.ContainsKey).Distinct(StringComparer.Ordinal).ToArray();
+        var subject = EntraClaims.Subject(principal) ?? throw new IntegrationAuthorizationException("SUBJECT_ID_MISSING");
+        var roleValues = EntraClaims.Roles(principal).Where(Roles.ContainsKey).ToArray();
         if (roleValues.Length != 1) throw new IntegrationAuthorizationException(roleValues.Length == 0 ? "APPLICATION_ROLE_MISSING" : "APPLICATION_ROLE_AMBIGUOUS");
         var locations = configuration.GetSection($"PlaceHub:LocationAssignments:{subject}").Get<string[]>() ?? [];
         var safeLocations = new HashSet<string>(locations.Where(IsValidLocation), StringComparer.OrdinalIgnoreCase);

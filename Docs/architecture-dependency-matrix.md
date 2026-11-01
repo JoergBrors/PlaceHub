@@ -14,4 +14,4 @@
 | Key Vault | Dedicated development worker-only vault | Exact name/RG/network/principal/cost and apply authorization |
 | Terraform delivery | ADR-016 exact saved plan | Policy expansion, plan validation; unknown/destructive blocked |
 | Production | Not approved | Data protection, hosting, persistence, operations and security sign-off |
-| Places write path (PROPOSED) | Graph v1.0 `POST /places` in the isolated worker; Exchange PowerShell retained for resource mailboxes | ADR-004/005/015 amendments not Accepted; needs both `TenantPlacesManagement` and `MailRecipient` (assignability and scope unproven), tenant-wide `Place.ReadWrite.All`, no automatic mailbox creation, inventory before first write, enforceable four-eyes for `BootstrapBuilding` |
+

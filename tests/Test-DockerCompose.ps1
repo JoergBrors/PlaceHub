@@ -32,6 +32,8 @@ if ($compose -match '(?ms)placehub-worker:.*?\n\s+ports:') { throw 'COMPOSE_WORK
 
 Assert-Contains $synthetic 'Microsoft365__Mode: OfflineMock' 'COMPOSE_SYNTHETIC_OVERRIDE_MISSING'
 Assert-Contains $synthetic 'Microsoft365__AllowSyntheticData: "true"' 'COMPOSE_SYNTHETIC_OVERRIDE_NOT_EXPLICIT'
+Assert-Contains $synthetic '127.0.0.1:3243:8443' 'COMPOSE_SYNTHETIC_PORT_NOT_SEPARATE'
+if ($synthetic -match '3242') { throw 'COMPOSE_SYNTHETIC_USES_LIVE_PORT' }
 Assert-Contains $worker 'PRIVILEGED_EXECUTION_NOT_ACTIVATED' 'WORKER_PRIVILEGED_FAIL_CLOSED_CODE_MISSING'
 Assert-Contains $dockerIgnore '**/bin/' 'DOCKERIGNORE_BIN_MISSING'
 Assert-Contains $dockerIgnore '**/obj/' 'DOCKERIGNORE_OBJ_MISSING'

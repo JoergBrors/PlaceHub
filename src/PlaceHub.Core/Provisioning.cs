@@ -23,7 +23,7 @@ public sealed class InMemoryAdministrationRepository : IAdministrationRepository
     }
 }
 
-public sealed record ProvisioningResult(RequestState State, string OutcomeCode);
+public sealed record ProvisioningResult(RequestState State, string OutcomeCode, string? PlaceId = null);
 public interface IProvisioningWorker { Task<ProvisioningResult> ExecuteAsync(AdministrationRequest request, CancellationToken cancellationToken); }
 
 public sealed class OfflineMockProvisioningWorker : IProvisioningWorker
@@ -33,6 +33,7 @@ public sealed class OfflineMockProvisioningWorker : IProvisioningWorker
     public Task<ProvisioningResult> ExecuteAsync(AdministrationRequest request, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        request.VerifyApprovalIntegrity();
         if (TenantAccessEnabled) throw new InvalidOperationException("OFFLINE_BOUNDARY_BROKEN");
         if (!AllowedOperations.Contains(request.Specification.Operation)) return Task.FromResult(new ProvisioningResult(RequestState.Failed, "OPERATION_NOT_ALLOWLISTED"));
         var name = request.Specification.Name;
@@ -69,7 +70,7 @@ public sealed class AdministrationService(IAdministrationRepository repository, 
     public async Task ExecuteAsync(Guid id, Actor actor, int version, CancellationToken cancellationToken = default)
     {
         var request = Get(id, actor); request.Start(actor, version);
-        try { var result = await worker.ExecuteAsync(request, cancellationToken); request.Complete(result.State, result.OutcomeCode); }
+        try { var result = await worker.ExecuteAsync(request, cancellationToken); request.Complete(result.State, result.OutcomeCode, result.PlaceId); }
         catch (OperationCanceledException) { request.Complete(RequestState.RequiresReconciliation, "EXECUTION_CANCELLED_UNVERIFIED"); throw; }
         catch { request.Complete(RequestState.Failed, "MOCK_WORKER_FAILED"); }
     }

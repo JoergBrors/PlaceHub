@@ -9,13 +9,70 @@
   },
   "applications": {
     "placehub-frontend-development": [
-      { "name": "Place.Read.All", "id": "cb8f45a0-5c2e-4ea1-b803-84b870a7d7ec", "type": "Scope", "resource": "microsoft_graph", "approval": "DECLARATION_APPROVED_CONSENT_REQUIRED" },
-      { "name": "Calendars.ReadBasic", "id": "662d75ba-a364-42ad-adee-f5f880ea4878", "type": "Scope", "resource": "microsoft_graph", "approval": "DECLARATION_APPROVED_CONSENT_REQUIRED" }
+      {
+        "name": "Place.Read.All",
+        "id": "cb8f45a0-5c2e-4ea1-b803-84b870a7d7ec",
+        "type": "Scope",
+        "resource": "microsoft_graph",
+        "approval": "DECLARATION_APPROVED_CONSENT_REQUIRED"
+      },
+      {
+        "name": "Calendars.ReadBasic",
+        "id": "662d75ba-a364-42ad-adee-f5f880ea4878",
+        "type": "Scope",
+        "resource": "microsoft_graph",
+        "approval": "DECLARATION_APPROVED_CONSENT_REQUIRED"
+      }
     ],
     "placehub-m365-provisioning-development": [
-      { "name": "Place.ReadWrite.All", "id": "f1f5e9aa-ad18-4b97-883e-6aa7e95b7a5f", "type": "Role", "resource": "microsoft_graph", "approval": "ADR_005_015_REQUIRED" },
-      { "name": "Exchange.ManageAsApp", "id": "dc50a0fb-09a3-484d-be87-e023b12c6440", "type": "Role", "resource": "exchange_online", "approval": "ADR_015_AND_EXCHANGE_RBAC_REQUIRED" }
+      {
+        "name": "Place.ReadWrite.All",
+        "id": "f1f5e9aa-ad18-4b97-883e-6aa7e95b7a5f",
+        "type": "Role",
+        "resource": "microsoft_graph",
+        "approval": "ADR_005_015_REQUIRED"
+      },
+      {
+        "name": "Exchange.ManageAsApp",
+        "id": "dc50a0fb-09a3-484d-be87-e023b12c6440",
+        "type": "Role",
+        "resource": "exchange_online",
+        "approval": "ADR_015_AND_EXCHANGE_RBAC_REQUIRED"
+      }
     ]
   },
-  "explicitly_excluded": ["User.Read", "Place.ReadWrite.All delegated", "AppRoleAssignment.ReadWrite.All", "Application.ReadWrite.All", "automatic_admin_consent"]
+  "explicitly_excluded": [
+    "User.Read",
+    "Place.ReadWrite.All delegated",
+    "AppRoleAssignment.ReadWrite.All",
+    "Application.ReadWrite.All",
+    "automatic_admin_consent"
+  ],
+  "places_write_prerequisites": {
+    "status": "PROPOSED_NOT_GRANTED",
+    "applies_to": "placehub-m365-provisioning-development",
+    "graph_application_permission": {
+      "name": "Place.ReadWrite.All",
+      "id": "f1f5e9aa-ad18-4b97-883e-6aa7e95b7a5f",
+      "type": "Role",
+      "effective_grant": "BLOCKED_SECURITY_REVIEW",
+      "note": "Tenant-wide once consented; Exchange RBAC scopes do not narrow an Entra-consented grant."
+    },
+    "exchange_rbac_for_applications": {
+      "roles": [
+        "TenantPlacesManagement",
+        "MailRecipient"
+      ],
+      "both_required_by_graph_documentation": true,
+      "service_principal_assignability": "UNPROVEN",
+      "recipient_scope_effect": "UNPROVEN",
+      "effective_assignment": "NOT_ASSIGNED"
+    },
+    "not_authorized": [
+      "Exchange.ManageAsApp as a side effect of Places writes",
+      "automatic workspace or desk mailbox creation",
+      "delegated Place.ReadWrite.All on the web application"
+    ],
+    "terraform": "No active declaration. Requires an ADR-016 policy amendment, exact plan classification and apply authorization; consent is a separate administrator action."
+  }
 }

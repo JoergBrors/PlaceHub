@@ -246,6 +246,12 @@ function Check-Docker {
     $c = Invoke-Tool -File docker -Arguments @('compose', '-f', 'compose.yaml', 'config', '-q') -WorkingDirectory $root
     Res 'docker.composeConfig' $(if ($c.ExitCode -eq 0) { 'OK' } else { 'FAIL' }) $(if ($c.ExitCode -eq 0) { 'compose.yaml resolves' } else { 'compose.yaml does not resolve (variables missing?)' })
     $ps = Invoke-Tool -File docker -Arguments @('compose', 'ps', '--format', '{{.Service}}:{{.State}}') -WorkingDirectory $root
+    $h = Invoke-Tool -File docker -Arguments @('ps', '--filter', 'name=placehub', '--format', '{{.Names}}={{.Status}}') -WorkingDirectory $root
+    foreach ($line in @($h.Output -split "`n" | Where-Object { $_ })) {
+        $name = ($line -split '=', 2)[0]; $state = ($line -split '=', 2)[1]
+        $status = if ($state -match 'unhealthy') { 'FAIL' } elseif ($state -match 'healthy') { 'OK' } else { 'WARN' }
+        Res "docker.health.$name" $status ($state -replace '\d+ (seconds?|minutes?|hours?)', 'n units')
+    }
     Res 'docker.containers' 'INFO' $(if ($ps.Output.Trim()) { $ps.Output.Trim() -replace "`n", ', ' } else { 'no containers running' })
 }
 
@@ -265,10 +271,23 @@ function Do-TestSecurity {
 function Do-TestArchitecture { Do-PsTests 'architecture' @('Test-Static.ps1', 'Test-UIStatic.ps1', 'Test-Microsoft365Readiness.ps1', 'Test-ProvisioningMock.ps1'); $o = Invoke-Tool -File dotnet -Arguments @('test', 'PlaceHub.slnx', '-c', 'Release', '--nologo', '--filter', 'FullyQualifiedName~FourEyes|FullyQualifiedName~PlacesProvisioning|FullyQualifiedName~AdministrationWorkflow') -WorkingDirectory $root; Res 'architecture.workflowAndFourEyes' $(if ($o.ExitCode -eq 0) { 'OK' } else { 'FAIL' }) (($o.Output -split "`n" | Select-Object -Last 1)) }
 function Do-TestTerraformPolicy { Do-PsTests 'terraformPolicy' @('Test-TerraformPlanClassifier.ps1', 'Test-Microsoft365PermissionProposal.ps1') }
 function Do-ValidateCompose { Do-PsTests 'compose' @('Test-DockerCompose.ps1') }
-function Do-DockerBuild { Run-Step 'docker.build' { Invoke-Tool -File docker -Arguments @('compose', 'build') -WorkingDirectory $root } }
+function Do-DockerBuild { $a = Get-ComposeArguments; Run-Step "docker.build.$DockerProfile" { Invoke-Tool -File docker -Arguments ($a + @('build')) -WorkingDirectory $root } }
 function Get-ComposeArguments { if ($DockerProfile -eq 'Synthetic') { @('compose', '-p', 'placehub-synthetic', '-f', 'compose.yaml', '-f', 'compose.synthetic-test.yaml') } else { @('compose', '-f', 'compose.yaml') } }
 function Do-DockerUp { $a = Get-ComposeArguments; Run-Step "docker.up.$DockerProfile" { Invoke-Tool -File docker -Arguments ($a + @('up', '-d')) -WorkingDirectory $root } }
 function Do-DockerDown { $a = Get-ComposeArguments; Run-Step "docker.down.$DockerProfile" { Invoke-Tool -File docker -Arguments ($a + @('down')) -WorkingDirectory $root } }
+
+function Do-TestUi {
+    # Renders every page in Microsoft Edge (Playwright) against the synthetic profile and checks the unauthenticated live redirect.
+    # Authenticated live pages need a real Entra sign-in and are NOT covered; they must be reviewed by a person.
+    $py = Invoke-Tool -File python -Arguments @('-c', 'import playwright') -WorkingDirectory $root
+    if (-not $py.Found -or $py.ExitCode -ne 0) { return Res 'ui.rendered' 'NOT_TESTED' 'python with Playwright is not available' 'pip install playwright (Microsoft Edge is used; no browser download)' }
+    $health = Invoke-Tool -File docker -Arguments @('ps', '--filter', 'name=placehub-synthetic-placehub-web', '--format', '{{.Status}}') -WorkingDirectory $root
+    if ($health.Output -notmatch 'Up') { return Res 'ui.rendered' 'BLOCKED' 'the synthetic profile is not running' 'Run DockerBuild and DockerUp with -DockerProfile Synthetic, and keep the live profile up for the redirect check' }
+    $out = Join-Path $ReportDirectory 'ui-evidence'
+    $r = Invoke-Tool -File python -Arguments @((Join-Path $root 'tests/ui/ui_review.py'), '--out', $out) -WorkingDirectory (Join-Path $root 'tests/ui')
+    $last = ($r.Output -split "`n" | Where-Object { $_ } | Select-Object -Last 1)
+    Res 'ui.rendered' $(if ($r.ExitCode -eq 0) { 'OK' } else { 'FAIL' }) "$last (screenshots and ui-review.json in $out; synthetic profile only)" 'Authenticated live pages require a manual or credentialed review'
+}
 
 function Do-TerraformPlan {
     if ($Environment -ne 'development') { Stop-Requirements -Exit SECURITY_BLOCKED -Message 'ENVIRONMENT_NOT_AUTHORIZED' }
@@ -432,6 +451,7 @@ $Commands = [ordered]@{
     TestSecurity = @{ Class = 'READ_ONLY'; Info = 'Static security tests and tracked-file secret scan'; Run = { Add-Results (Do-TestSecurity) } }
     TestArchitecture = @{ Class = 'READ_ONLY'; Info = 'Architecture, readiness, workflow and four-eyes tests'; Run = { Add-Results (Do-TestArchitecture) } }
     TestTerraformPolicy = @{ Class = 'READ_ONLY'; Info = 'Plan classifier and permission proposal tests'; Run = { Add-Results (Do-TestTerraformPolicy) } }
+    TestUi = @{ Class = 'LOCAL_MUTATION'; Info = 'Render all pages in Edge against the synthetic profile and write screenshots (artifacts/ui-evidence)'; Run = { Add-Results (Do-TestUi) } }
     ValidateCompose = @{ Class = 'READ_ONLY'; Info = 'Compose static checks'; Run = { Add-Results (Do-ValidateCompose) } }
     DockerBuild = @{ Class = 'LOCAL_MUTATION'; Info = 'docker compose build'; Run = { Add-Results (Do-DockerBuild) } }
     DockerUp = @{ Class = 'LOCAL_MUTATION'; Info = 'docker compose up -d (-DockerProfile Live|Synthetic)'; Run = { Add-Results (Do-DockerUp) } }

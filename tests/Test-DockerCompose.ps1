@@ -65,4 +65,8 @@ Write-Output if (Get-Command docker -ErrorAction SilentlyContinue) {
     }
     finally { Remove-Item Env:PLACEHUB_TLS_DIRECTORY, Env:PLACEHUB_USER_OBJECT_ID, Env:PLACEHUB_LOCATION_PLACE_ID -ErrorAction SilentlyContinue }
 }
+# Regression: a healthcheck that calls a binary missing from the image keeps the container unhealthy forever.
+$dockerfile = Get-Content (Join-Path $root 'Dockerfile') -Raw
+if ($compose -match '"CMD", "curl"' -and $dockerfile -notmatch 'install -y --no-install-recommends curl') { throw 'COMPOSE_HEALTHCHECK_BINARY_NOT_IN_IMAGE' }
+if ($compose -match '"CMD", "wget"') { throw 'COMPOSE_HEALTHCHECK_USES_WGET' }
 'DOCKER_COMPOSE_STATIC_OK'

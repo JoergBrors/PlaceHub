@@ -1,9 +1,20 @@
 @page "/diagnose"
 @inject IntegrationReadinessService Readiness
+@inject PlacesDiagnosticsService PlacesDiagnostics
+@inject CurrentActorContext ActorContext
+@inject Microsoft365Options Microsoft365Options
+@rendermode InteractiveServer
 <PageTitle>Integration & Diagnose · PlaceHub</PageTitle>
 <div class="page-heading"><div class="page-title"><span class="page-icon">◇</span><div><h1>Integration & Diagnose</h1><p>Sicherer technischer Status ohne Geheimnisse, Tokens oder rohe Dienstantworten.</p></div></div><StatusBadge Text="@ModeLabel" /></div>
 <div class="notice" role="status"><strong>@ModeLabel</strong>@(Readiness.Mode==IntegrationMode.OfflineMock?"Keine Microsoft-365-Netzwerkaufrufe. Deterministische synthetische Adapter sind aktiv.":"Read-only wurde angefordert. Jeder Aufruf benötigt zusätzlich Identität, Rolle, Standort und delegierten Scope.")</div>
 <div class="table-wrap"><table><thead><tr><th>Prüfung</th><th>Status</th><th>Sicherer Diagnosecode</th></tr></thead><tbody>@foreach(var item in Readiness.GetStatus()){<tr><td><b>@item.Name</b></td><td><StatusBadge Text="@item.State" /></td><td><code>@item.Code</code></td></tr>}</tbody></table></div>
+<section class="surface"><h2>Places-Hierarchie prüfen</h2><p>Ein einzelner, begrenzter Lauf: Anzahl je Typ in den Microsoft-Graph-Listen, Anzahl nach Standortfilter und direkte Auflösung der zugewiesenen Gebäude. Es werden nur Zahlen und Zustände angezeigt, keine Details nicht autorisierter Ressourcen. Ein HTTP 200 mit leerer Liste gilt nicht als Beweis.</p>
+@if(Readiness.Mode==IntegrationMode.Microsoft365ReadOnly){<button disabled="@running" @onclick="RunAsync">@(running?"Läuft …":"Diagnose ausführen")</button>}else{<div class="notice" role="status">Im synthetischen Testprofil nicht verfügbar.</div>}
+@if(report is not null){<div class="notice" role="status"><strong>Ergebnis: <code>@report.Outcome</code></strong>Gelesen: @report.At.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss") · Quelle: @report.Source · zugewiesene Standorte: @report.AssignedLocations, aufgelöst: @report.AssignedLocationsResolved · Direktabfragen: @report.DirectLookups@(report.FailureCode is null?"":$" · Code: {report.FailureCode}")</div>
+@if(report.Types.Count>0){<div class="table-wrap"><table><thead><tr><th>Typ</th><th>In Liste</th><th>Nach Autorisierung sichtbar</th></tr></thead><tbody>@foreach(var t in report.Types){<tr><td>@t.Type</td><td>@t.Listed</td><td>@t.Authorized</td></tr>}</tbody></table></div>}
+@foreach(var w in report.Warnings){<p class="notice" role="status">@w</p>}}</section>
 <section class="surface"><h2>Berechtigungsmodell</h2><p>Eine in Terraform deklarierte Berechtigung ist keine wirksame Zustimmung. PlaceHub bestätigt Consent und Tenantfähigkeit erst durch einen validierten delegierten Token und einen erfolgreichen Graph-Aufruf.</p><div class="actions"><span class="feature">Place.Read.All · deklariert</span><span class="feature">Calendars.ReadBasic · deklariert</span><span class="feature">Schreibberechtigungen · gesperrt</span></div></section>
 <section class="surface"><h2>Sicherheitsgrenzen</h2><ul><li>Die Web-App verwendet ein eigenes gemountetes Entra-Clientzertifikat und keinen Key-Vault-Zugriff.</li><li>Fehlende Rolle, Standortzuweisung, Consent oder Scopes werden abgewiesen.</li><li>Provisionierung und Schreiboperationen sind nicht aktiviert.</li><li>Live-Fehler fallen niemals still auf Mockdaten zurück.</li></ul></section>
-@code{private string ModeLabel=>Readiness.Mode==IntegrationMode.OfflineMock?"Offline Mock":"Microsoft 365 Read-Only";}
+@code{private bool running; private PlacesDiagnosticReport? report;
+ private async Task RunAsync(){running=true;try{report=await PlacesDiagnostics.RunAsync(ActorContext.CreateReadContext(Microsoft365Options),CancellationToken.None,report);}catch(IntegrationException ex){report=PlacesDiagnosticsService.Failure(ex.Code,DateTimeOffset.UtcNow);}finally{running=false;}}
+ private string ModeLabel=>Readiness.Mode==IntegrationMode.OfflineMock?"Offline Mock":"Microsoft 365 Read-Only";}

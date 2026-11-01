@@ -1,0 +1,15 @@
+{
+  "status": "PENDING_ASSIGNMENT_APPROVAL",
+  "environment": "development",
+  "target_enterprise_application": "placehub-frontend-development",
+  "assignments": [],
+  "allowed_roles": {
+    "PlaceHub.OfficeManager": "166b3fc4-fb93-401b-b856-bffa0d682447",
+    "PlaceHub.LocationManager": "228e1fa0-cca2-4ac4-bc44-987ee444ba4c",
+    "PlaceHub.SystemAdministrator": "9a3f940c-08c4-4bd7-8cfa-106eaab349a5"
+  },
+  "notes": [
+    "Assignments require exact user or group object IDs and location authorization records.",
+    "This manifest is not consumed by active Terraform and grants no role."
+  ]
+}

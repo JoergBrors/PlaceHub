@@ -1,0 +1,28 @@
+{
+  "status": "PENDING_PROJECT_OWNER_AND_SECURITY_APPROVAL",
+  "environment": "development",
+  "tenant_id": null,
+  "permission_manifest": "development-m365-permissions.json",
+  "approved_permission_names": [],
+  "adr_decisions": {
+    "ADR-004": "PENDING",
+    "ADR-005": "PENDING",
+    "ADR-006": "PENDING",
+    "ADR-007": "PENDING",
+    "ADR-009-live-first-amendment": "PENDING",
+    "ADR-013-key-vault-cost-amendment": "PENDING",
+    "ADR-015": "PENDING",
+    "ADR-017": "PENDING"
+  },
+  "web_credential_strategy": "PENDING",
+  "exchange_interface": "PENDING",
+  "worker_runtime_principal_object_id": null,
+  "worker_host": "PENDING",
+  "key_vault_network_model": "PENDING",
+  "key_vault_cost_approved": false,
+  "admin_consent_approved": false,
+  "terraform_apply_approved": false,
+  "approved_by": null,
+  "approved_at": null,
+  "approval_reference": null
+}

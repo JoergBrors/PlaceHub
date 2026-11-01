@@ -108,8 +108,8 @@ function Check-ADRs {
     foreach ($n in '004', '005', '015', '017') {
         $f = $adrs | Where-Object Name -like "ADR-$n-*"; if (-not $f) { Res "adr.$n" 'FAIL' 'missing'; continue }
         $text = Get-Content -LiteralPath $f.FullName -Raw
-        $proposed = $text -match 'Status: PROPOSED'
-        Res "adr.$n" $(if ($proposed) { 'WARN' } else { 'OK' }) $(if ($proposed) { 'contains a PROPOSED amendment, not Accepted' } else { 'no pending amendment' }) $(if ($proposed) { 'Project Owner acceptance of the amendment text' } else { '' })
+        $proposed = $text -match 'Status: PROPOSED'; $target = $text -match 'Status: ACCEPTED as target architecture'
+        Res "adr.$n" $(if ($proposed) { 'WARN' } else { 'OK' }) $(if ($proposed) { 'contains a PROPOSED amendment, not Accepted' } elseif ($target) { 'amendment accepted as target architecture; operative rights are not approved' } else { 'no pending amendment' }) $(if ($proposed) { 'Project Owner acceptance of the amendment text' } elseif ($target) { 'Operative permissions, consent, RBAC, apply and worker activation stay gated' } else { '' })
     }
     $indexOk = (Get-Content -LiteralPath (Join-Path $dir 'README.md') -Raw) -match '\[004\]'
     Res 'adr.index' $(if ($indexOk) { 'OK' } else { 'FAIL' }) 'ADR index present'

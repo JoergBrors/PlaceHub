@@ -97,8 +97,8 @@ References are maintained in the relevant architecture documents and ADRs.
 After the remaining implementation prerequisites for accepted ADRs are reviewed, authorize a separate task to create only the solution skeleton, architecture tests, secure multi-stage web image, hardened Compose file, SQLite migration/seed tooling and offline mocks. Keep live Entra/Graph/Exchange and all Azure provisioning out of that phase.
 
 
-## Places write-path amendments (2026-11-01)
+## Places write-path amendments (2026-11-01, accepted as target architecture)
 
 
 
-ADR-004, ADR-005 and ADR-015 carry PROPOSED amendments for the Microsoft Places write path. They do not change accepted decisions: the Exchange Online PowerShell path for resource mailboxes stays as accepted, delegated Places writes are rejected, and no permission, consent, RBAC assignment, Key Vault access, worker activation or tenant write is authorized. Consistency findings: Microsoft documentation requires both `TenantPlacesManagement` and `MailRecipient` for application `POST /places`; the RBAC-for-Applications article does not list them as supported roles (open assumption); `AdministrationRequest.Approve` does not yet separate requester and approver. Status stays PROPOSED until the Project Owner accepts the corrected text.
+ADR-004, ADR-005 and ADR-015 carry amendments, accepted by the Project Owner as target architecture on 2026-11-01, for the Microsoft Places write path. They do not change accepted decisions: the Exchange Online PowerShell path for resource mailboxes stays as accepted, delegated Places writes are rejected, and no permission, consent, RBAC assignment, Key Vault access, worker activation or tenant write is authorized. Consistency findings: Microsoft documentation requires both `TenantPlacesManagement` and `MailRecipient` for application `POST /places`; the RBAC-for-Applications article does not list them as supported roles (open assumption); `AdministrationRequest.Approve` does not yet separate requester and approver. The acceptance covers the design only; every operative right and tenant write stays gated.

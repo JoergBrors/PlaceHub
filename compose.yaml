@@ -23,7 +23,7 @@ services:
       Microsoft365__ClientCertificatePath: /run/placehub-tls/client-auth.pfx
       Microsoft365__ClientCertificates__0__SourceType: Path
       Microsoft365__ClientCertificates__0__CertificateDiskPath: /run/placehub-tls/client-auth.pfx
-      PlaceHub__LocationAssignments__${PLACEHUB_USER_OBJECT_ID:-UNASSIGNED}__0: ${PLACEHUB_LOCATION_PLACE_ID:-UNASSIGNED}
+      PlaceHub__LocationAssignmentList: ${PLACEHUB_USER_OBJECT_ID:-UNASSIGNED}=${PLACEHUB_LOCATION_PLACE_ID:-UNASSIGNED}
     volumes:
       - type: bind
         source: ${PLACEHUB_TLS_DIRECTORY:?PLACEHUB_TLS_DIRECTORY required}

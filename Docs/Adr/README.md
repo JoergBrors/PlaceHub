@@ -7,8 +7,8 @@ ADR status is recorded individually. On 2026-11-01 the Project Owner approved th
 | [001](ADR-001-overall-system-architecture.md) | Overall System Architecture | P0 | Accepted |
 | [002](ADR-002-frontend-technology-and-ui-strategy.md) | Frontend Technology and UI Strategy | P0 | Accepted |
 | [003](ADR-003-backend-architecture-with-net-10.md) | Backend Architecture with .NET 10 | P0 | Accepted |
-| [004](ADR-004-microsoft-graph-integration-strategy.md) | Microsoft Graph Integration Strategy | P0 | Accepted (development reads) |
-| [005](ADR-005-microsoft-places-data-model-and-hierarchy.md) | Microsoft Places Data Model and Hierarchy | P0 | Accepted (read hierarchy) |
+| [004](ADR-004-microsoft-graph-integration-strategy.md) | Microsoft Graph Integration Strategy | P0 | Accepted (development reads); write-path amendment PROPOSED |
+| [005](ADR-005-microsoft-places-data-model-and-hierarchy.md) | Microsoft Places Data Model and Hierarchy | P0 | Accepted (read hierarchy); write rules + bootstrap PROPOSED |
 | [006](ADR-006-exchange-resource-mailboxes-as-parking-resources.md) | Exchange Resource Mailboxes as Parking Resources | P0 | Proposed (worker interface accepted) |
 | [007](ADR-007-parking-reservations-and-consistency.md) | Parking Reservations and Consistency | P0 | Accepted (availability reads) |
 | [008](ADR-008-visitor-management-and-data-storage.md) | Visitor Management and Data Storage | P1 | Proposed |
@@ -18,7 +18,7 @@ ADR status is recorded individually. On 2026-11-01 the Project Owner approved th
 | [012](ADR-012-error-handling-resilience-and-observability.md) | Error Handling, Resilience and Observability | P1 | Accepted |
 | [013](ADR-013-deployment-and-hosting-strategy.md) | Deployment and Hosting Strategy | P1 | Accepted (Worker Key Vault amended) |
 | [014](ADR-014-testing-strategy.md) | Testing Strategy | P1 | Accepted |
-| [015](ADR-015-administrative-provisioning-and-privileged-operations.md) | Administrative Provisioning and Privileged Operations | P0 | Accepted (development architecture) |
+| [015](ADR-015-administrative-provisioning-and-privileged-operations.md) | Administrative Provisioning and Privileged Operations | P0 | Accepted (development architecture); Graph write path PROPOSED |
 | [016](ADR-016-github-actions-terraform-delivery.md) | GitHub Actions Terraform Delivery | P0 | Accepted (amended) |
 | [017](ADR-017-durable-provisioning-queue-and-worker-contract.md) | Durable Provisioning Queue and Worker Contract | P0 | Accepted (single-instance development) |
 

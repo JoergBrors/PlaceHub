@@ -61,3 +61,17 @@ For Phase 2, native Graph `placeId`/`parentId` values are the proposed read hier
 - Microsoft Learn: https://learn.microsoft.com/en-us/microsoft-365/places/powershell/new-place
 
 > Hinweis: Microsoft-Links sind Rechercheanker, keine Bestätigung aller API-Details. Unterstützungsstatus und Lizenzierung im Technical Discovery nachweisen.
+
+## Proposed amendment: Microsoft Places write path (2026-11-01)
+
+**Status: PROPOSED – not Accepted.** The Project Owner accepted the target architecture in principle on 2026-11-01 and required the corrections below before acceptance. Existing accepted decisions remain in force; no tenant write, permission declaration, consent, RBAC assignment, worker activation or Key Vault access is authorized by this text.
+
+**Proposed hierarchy rules (Microsoft Learn).** Floor -> building; section -> floor; room -> floor or section; workspace and desk -> section. The worker rejects a create whose parent is missing or of the wrong type, and after the create re-reads the object and verifies `parentId`.
+
+**Identifiers.** `id` is documented as not immutable; `placeId` is the stable service-level identifier. PlaceHub authorizes and persists by `placeId`, accepts `id` as an alias on input, resolves a `parentId` given in either form to the parent's canonical identifier (implemented for reads in the read adapter), and re-reads `id` per operation. Verification after a write compares by `placeId`, never by display name alone.
+
+**Propagation.** Place changes can take time to appear (documented delays of up to 24 hours in Places experiences for some parent links), so a successful create is followed by a bounded read-back; absence after the bound yields `PendingPropagation` or `RequiresReconciliation`, never a second create.
+
+**Existing resources first.** An empty `200` for the building collection does not prove that rooms, room lists, workspaces, desks or legacy Exchange room mailboxes are absent. Before the first tenant write the full inventory (building, floor, section, room, roomList, workspace, desk, plus Exchange room/workspace mailboxes) must be read and recorded; existing resources are imported by `placeId`, never duplicated.
+
+**First-building bootstrap (proposed, retained).** A dedicated request kind `BootstrapBuilding` is allowed only when: the environment is `development`; the inventory above shows zero buildings at approval and again at execution; the payload equals an approved manifest entry (exact display name, no free text); the request is single-use; and requester and approver are different principals, the approver being a `PlaceHub.SystemAdministrator`. Separation must be enforceable, not procedural: (1) the approval operation rejects `approver == requester` using the immutable identifiers recorded in the request; (2) the worker re-checks it from the immutable approved payload before execution; (3) both checks have negative tests. **Current code gap:** `AdministrationRequest.Approve` does not compare approver and requester today, so self-approval is possible for existing request kinds; the rule is introduced with `BootstrapBuilding` and is not applied retroactively without a separate decision. Creating the building grants nobody access; the location assignment stays a separate owner-controlled step and SystemAdministrator never becomes tenant-wide.

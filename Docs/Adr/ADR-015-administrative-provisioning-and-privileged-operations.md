@@ -67,3 +67,20 @@ The offline POC implements this shape with an in-process mock adapter only; it h
 - Microsoft Learn: https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac
 
 > Hinweis: Microsoft-Links sind Rechercheanker, keine Bestätigung aller API-Details. Unterstützungsstatus und Lizenzierung im Technical Discovery nachweisen.
+
+## Proposed amendment: Microsoft Places write path (2026-11-01)
+
+**Status: PROPOSED – not Accepted.** The Project Owner accepted the target architecture in principle on 2026-11-01 and required the corrections below before acceptance. Existing accepted decisions remain in force; no tenant write, permission declaration, consent, RBAC assignment, worker activation or Key Vault access is authorized by this text.
+
+**Proposed decision.** The worker performs Places hierarchy writes through Graph v1.0 (ADR-004 amendment) using its isolated workload identity `placehub-m365-provisioning-development` (certificate, worker-only Key Vault access per the accepted Key Vault amendment). The accepted Exchange Online PowerShell path stays in place, unchanged, for Exchange resource-mailbox administration; this amendment neither widens nor replaces it.
+
+**Required permissions and why they cannot be narrowed (documented).**
+- Entra application permission `Place.ReadWrite.All` (tenant-wide once consented).
+- Exchange RBAC for Applications: `TenantPlacesManagement` **and** `MailRecipient` per the Graph documentation. No stage is assumed to need less until proven.
+- Application roles cannot be copied or derived, and Exchange RBAC is additive to Entra grants, so neither a custom narrower role nor an Exchange scope reduces the effective reach of a consented `Place.ReadWrite.All`. The open assumptions (service-principal assignability of these roles, scope effect on `MailRecipient`) are listed in the ADR-004 amendment.
+
+**Residual privileges to be approved explicitly before any assignment.** (a) Create, update and delete Places objects tenant-wide. (b) Through `MailRecipient`: manage users and mailboxes within the effective scope, which without a proven recipient scope is the whole tenant. (c) Implicit mailbox creation for workspaces and Reservable/DropIn desks. This decision authorizes none of (a)-(c) as effective grants and no automatic mailbox creation.
+
+**Typed request contract (extends ADR-017).** Allowlisted resource types and parameters (`displayName`, `parentId`, documented tags and mode only), immutable approved payload including requester and approver identifiers, idempotency key, transactional claim, lease and heartbeat, bounded retries, external read-after-write verification by `placeId`, `PendingPropagation` and `RequiresReconciliation` for ambiguous outcomes, and no automatic duplicate creation (look up by name and parent before retrying a timed-out create). The web process never receives the worker credential, a Key Vault grant or an app-only token. Requester/approver separation for `BootstrapBuilding` is enforced at approval and again by the worker (ADR-005 amendment).
+
+**Gates (all open and independent).** Acceptance of the three amendments; exact development resource names; inventory of existing rooms, room lists, workspaces and desks; worker identity and certificate enrollment; Terraform policy amendment, plan and apply for `Place.ReadWrite.All` on the provisioning app; administrator consent; Exchange RBAC assignment (including proof of assignability and scope); Key Vault access for the worker only; first-building bootstrap policy; mailbox-create residual privilege; ADR-016 exact-plan authorization.

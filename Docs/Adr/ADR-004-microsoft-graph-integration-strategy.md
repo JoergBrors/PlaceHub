@@ -61,3 +61,23 @@ Use Microsoft Graph v1.0 typed Places list/descendant endpoints for Building, Fl
 - Microsoft Learn: https://learn.microsoft.com/en-us/microsoft-365/places/powershell/new-place
 
 > Hinweis: Microsoft-Links sind Rechercheanker, keine Bestätigung aller API-Details. Unterstützungsstatus und Lizenzierung im Technical Discovery nachweisen.
+
+## Proposed amendment: Microsoft Places write path (2026-11-01)
+
+**Status: PROPOSED – not Accepted.** The Project Owner accepted the target architecture in principle on 2026-11-01 and required the corrections below before acceptance. Existing accepted decisions remain in force; no tenant write, permission declaration, consent, RBAC assignment, worker activation or Key Vault access is authorized by this text.
+
+**Proposed decision.** Microsoft Graph v1.0 `POST /places` (and update operations on the same resource) is the preferred interface for creating and updating the Places hierarchy (building, floor, section, room, workspace, desk), executed only by the isolated provisioning worker with app-only authentication. Office Management never holds or uses a delegated Places write permission; the web application keeps only delegated `Place.Read.All` and `Calendars.ReadBasic`. No beta endpoint is used. Exchange Online PowerShell (ADR-015) is retained, unchanged, for Exchange resource-mailbox administration (mailbox, `Set-CalendarProcessing`); the two interfaces are not interchangeable and a Places hierarchy operation is not routed to PowerShell without a separate decision.
+
+**Documented prerequisites (Microsoft Learn, checked 2026-11-01).**
+- Application `POST /places` requires `Place.ReadWrite.All` **and** both Exchange roles `TenantPlacesManagement` (manage Places) and `MailRecipient` (manage users and mailboxes). Hierarchy-only creation (building, floor, section) is **not** documented as exempt from `MailRecipient`; no exemption is assumed until a supported technical proof exists in the development tenant.
+- Delegated use requires an Entra role (least privileged: Exchange Administrator), which Office Managers must not hold.
+- Graph creates workspaces with a generated `emailAddress`, i.e. a mailbox is created as a side effect.
+
+**Unresolved capability assumptions (must be proven, not assumed).**
+1. Whether `TenantPlacesManagement` and `MailRecipient` can be assigned to a service principal through Exchange RBAC for Applications. That article lists its supported application roles and names neither, while the Graph article points to it for exactly these roles.
+2. Whether a recipient scope (management scope or administrative unit) takes effect for these roles and limits `MailRecipient` to PlaceHub-marked recipients. RBAC scopes apply to recipients, not to Places directory objects.
+3. The Places documentation is inconsistent on whether one or both roles are required for `Set-PlaceV3`; the stricter reading (both) is applied.
+
+**Narrowing is limited by documented platform behavior.** Application roles cannot be copied or derived, so no custom narrower role can be built. Exchange RBAC grants are additive to Entra grants, so a tenant-consented `Place.ReadWrite.All` is not narrowed by any Exchange scope.
+
+**Mailbox side effects are not authorized here.** This decision authorizes no automatic creation of workspace or desk mailboxes. Creating a workspace or a Reservable/DropIn desk requires its own approval of the mailbox-create residual privilege (ADR-015 amendment).

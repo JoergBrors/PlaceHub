@@ -17,15 +17,14 @@ flowchart LR
 
 ## HTTPS certificate
 
-Create a trusted development certificate outside the repository and export PEM files into an OS-ACL-protected directory. Example on a developer workstation:
+Create a development certificate outside the repository and export PEM files into an OS-ACL-protected directory. The initializer refuses to overwrite existing certificate material and does not print private-key content:
 
 ```powershell
-$tlsDirectory = Join-Path $env:LOCALAPPDATA 'PlaceHub/tls'
-New-Item -ItemType Directory -Force -Path $tlsDirectory
-dotnet dev-certs https --clean
-dotnet dev-certs https --trust
-dotnet dev-certs https -ep (Join-Path $tlsDirectory 'tls.crt') --format PEM --no-password
+./scripts/Initialize-LocalTls.ps1 -WhatIf
+./scripts/Initialize-LocalTls.ps1 -Trust
 ```
+
+When `.env` contains `PLACEHUB_TLS_DIRECTORY`, the initializer uses that directory automatically. An explicit `-OutputDirectory` takes precedence. The directory value and private-key material are not written to the log.
 
 The export also creates `tls.key`. Restrict that file to the current user. Set `PLACEHUB_TLS_DIRECTORY` to this absolute directory. Compose mounts it read-only at `/run/placehub-tls`; neither file enters the image or repository.
 
@@ -37,16 +36,22 @@ Normal startup is Live-First and deliberately fails until the required values ex
 $env:PLACEHUB_TLS_DIRECTORY = "$env:LOCALAPPDATA\PlaceHub\tls"
 $env:PLACEHUB_TENANT_ID = '<approved-tenant-guid>'
 $env:PLACEHUB_CLIENT_ID = '<existing-placehub-frontend-client-guid>'
-$env:PLACEHUB_WEB_CREDENTIAL_PROVIDER = '<approved-provider>'
-$env:PLACEHUB_PERMISSIONS_APPROVED = 'false'
-$env:PLACEHUB_CONSENT_VERIFIED = 'false'
-$env:PLACEHUB_TENANT_CAPABILITY_VERIFIED = 'false'
+./scripts/Initialize-LocalEntraCertificate.ps1 -WhatIf
+./scripts/Initialize-LocalEntraCertificate.ps1
+# Register only client-auth.cer on the existing Entra web application after approval.
+# Keep client-auth.pfx local and never upload or commit it.
 docker compose config
 docker compose build
 docker compose up
 ```
 
-Open `https://localhost:3242`. The exact Entra callback change to `https://localhost:3242/signin-oidc` and sign-out callback is prepared in `infrastructure/terraform/proposals/development-redirect-3242.json`; the active registration still uses port 8443 until separately applied.
+If Docker Desktop shows `3242:8443` but the container is stopped, the port mapping exists but cannot accept connections. Check `docker compose logs placehub-web`. `Could not find file '/run/placehub-tls/tls.crt'` means `PLACEHUB_TLS_DIRECTORY` points to a directory without the generated `tls.crt` and `tls.key`; initialize TLS and recreate the container.
+
+The repository `.dockerignore` excludes host `bin` and `obj` directories. This is required for cross-platform builds: copying a Windows-generated `project.assets.json` into the Linux build stage would retain Windows-only NuGet fallback paths and make `dotnet publish` fail. It also excludes local certificate and environment-secret files from the Docker build context.
+
+Open `https://localhost:3242`. Terraform now declares the exact `3242` sign-in/sign-out callbacks while preserving the existing `8443` sign-in redirect. The read-only tenant audit on 2026-11-01 found both sign-in redirects, but Terraform state reconciliation and any apply remain subject to ADR-016.
+
+Normal runtime also requires an explicitly approved Enterprise Application role and an exact server-side location mapping. Put `PLACEHUB_USER_OBJECT_ID=<approved-signed-in-user-object-id>` and `PLACEHUB_LOCATION_PLACE_ID=<building-place-id>` into the untracked `.env`; Compose maps them to the server-side authorization configuration. A group may receive the Enterprise Application role, but location mapping remains bound to the resulting signed-in user's `oid`. Missing values become the nonmatching `UNASSIGNED` sentinel and never grant all locations. Configuration flags cannot assert consent or successful connectivity; the UI changes to a verified Graph state only after an actual delegated API response succeeds.
 
 For isolated synthetic tests only:
 

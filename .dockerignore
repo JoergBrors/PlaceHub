@@ -1,0 +1,16 @@
+**/bin/
+**/obj/
+.git/
+.vs/
+.vscode/
+.azure/
+TestResults/
+**/*.user
+**/*.suo
+**/*.pfx
+**/*.p12
+**/*.key
+**/*.pem
+.env
+.env.*
+!.env.example

@@ -18,10 +18,12 @@ services:
       Microsoft365__AllowSyntheticData: "false"
       Microsoft365__TenantId: ${PLACEHUB_TENANT_ID:-}
       Microsoft365__ClientId: ${PLACEHUB_CLIENT_ID:-}
-      Microsoft365__CredentialProvider: ${PLACEHUB_WEB_CREDENTIAL_PROVIDER:-None}
-      Microsoft365__PermissionsApproved: ${PLACEHUB_PERMISSIONS_APPROVED:-false}
-      Microsoft365__ConsentVerified: ${PLACEHUB_CONSENT_VERIFIED:-false}
-      Microsoft365__TenantCapabilityVerified: ${PLACEHUB_TENANT_CAPABILITY_VERIFIED:-false}
+      Microsoft365__Instance: https://login.microsoftonline.com/
+      Microsoft365__CredentialProvider: Certificate
+      Microsoft365__ClientCertificatePath: /run/placehub-tls/client-auth.pfx
+      Microsoft365__ClientCertificates__0__SourceType: Path
+      Microsoft365__ClientCertificates__0__CertificateDiskPath: /run/placehub-tls/client-auth.pfx
+      PlaceHub__LocationAssignments__${PLACEHUB_USER_OBJECT_ID:-UNASSIGNED}__0: ${PLACEHUB_LOCATION_PLACE_ID:-UNASSIGNED}
     volumes:
       - type: bind
         source: ${PLACEHUB_TLS_DIRECTORY:?PLACEHUB_TLS_DIRECTORY required}

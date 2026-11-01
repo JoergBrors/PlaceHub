@@ -13,15 +13,23 @@
     "azuread_application.placehub_web": {
       "display_name": "placehub-frontend-development",
       "sign_in_audience": "AzureADMyOrg",
-      "homepage_url": "https://localhost:8443/",
-      "logout_url": "https://localhost:8443/signout-callback-oidc",
-      "redirect_uris": ["https://localhost:8443/signin-oidc"],
+      "homepage_url": "https://localhost:3242/",
+      "logout_url": "https://localhost:3242/signout-callback-oidc",
+      "redirect_uris": ["https://localhost:3242/signin-oidc", "https://localhost:8443/signin-oidc"],
       "app_roles": {
         "PlaceHub.OfficeManager": "166b3fc4-fb93-401b-b856-bffa0d682447",
         "PlaceHub.LocationManager": "228e1fa0-cca2-4ac4-bc44-987ee444ba4c",
         "PlaceHub.SystemAdministrator": "9a3f940c-08c4-4bd7-8cfa-106eaab349a5"
       },
-      "required_resource_access": []
+      "required_resource_access": [
+        {
+          "resource_app_id": "00000003-0000-0000-c000-000000000000",
+          "resource_access": [
+            { "id": "662d75ba-a364-42ad-adee-f5f880ea4878", "type": "Scope" },
+            { "id": "cb8f45a0-5c2e-4ea1-b803-84b870a7d7ec", "type": "Scope" }
+          ]
+        }
+      ]
     },
     "azuread_application.m365_provisioning": {
       "display_name": "placehub-m365-provisioning-development",

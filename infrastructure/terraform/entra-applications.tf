@@ -2,8 +2,15 @@ data "azuread_client_config" "current" {}
 
 locals {
   approved_web_redirect_uris = [
+    "https://localhost:3242/signin-oidc",
     "https://localhost:8443/signin-oidc",
   ]
+
+  microsoft_graph_application_id = "00000003-0000-0000-c000-000000000000"
+  approved_read_only_scopes = {
+    "Place.Read.All"      = "cb8f45a0-5c2e-4ea1-b803-84b870a7d7ec"
+    "Calendars.ReadBasic" = "662d75ba-a364-42ad-adee-f5f880ea4878"
+  }
 
   placehub_user_roles = {
     "PlaceHub.OfficeManager" = {
@@ -39,9 +46,21 @@ resource "azuread_application" "placehub_web" {
     }
   }
 
+  required_resource_access {
+    resource_app_id = local.microsoft_graph_application_id
+
+    dynamic "resource_access" {
+      for_each = local.approved_read_only_scopes
+      content {
+        id   = resource_access.value
+        type = "Scope"
+      }
+    }
+  }
+
   web {
-    homepage_url  = "https://localhost:8443/"
-    logout_url    = "https://localhost:8443/signout-callback-oidc"
+    homepage_url  = "https://localhost:3242/"
+    logout_url    = "https://localhost:3242/signout-callback-oidc"
     redirect_uris = local.approved_web_redirect_uris
 
     implicit_grant {

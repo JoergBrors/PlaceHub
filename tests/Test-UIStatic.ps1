@@ -10,6 +10,7 @@ foreach ($token in @('--navy-900','--indigo-600','--success','--warning','--dang
 foreach ($route in @('buchungskalender','schreibtischgruppen','parkplaetze','meine-auftraege','freigaben','diagnose')) { if ($nav -notmatch $route) { throw 'UI_ROUTE_MISSING' } }
 $myRequests = Get-Content (Join-Path $root 'src/PlaceHub.Web/Components/Pages/MyRequests.razor') -Raw
 foreach ($control in @('Meine Aufträge','Wartet auf Worker','Timeline','ADR-017','LOCATION')) { if ($myRequests -notmatch [regex]::Escape($control)) { throw 'REQUEST_DASHBOARD_CONTROL_MISSING' } }
-foreach ($state in @('Verfügbar','Reserviert','Unbekannt')) { if ($calendar -notmatch $state) { throw 'CALENDAR_STATE_MISSING' } }
+foreach ($state in @('getSchedule','Microsoft365ReadOnly','Keine Buchungsmutation')) { if ($calendar -notmatch $state) { throw 'CALENDAR_LIVE_READ_CONTRACT_MISSING' } }
+if ($calendar -match 'synthetic\.invalid|Reserviert \(Mock\)') { throw 'CALENDAR_SYNTHETIC_RUNTIME_DATA_PRESENT' }
 if ($program -notmatch 'StaticWebAssetsLoader\.UseStaticWebAssets') { throw 'PRODUCTION_BUILD_STATIC_ASSETS_NOT_ENABLED' }
 'UI_STATIC_TESTS_OK'

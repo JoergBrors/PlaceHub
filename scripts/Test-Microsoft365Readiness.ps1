@@ -24,16 +24,18 @@ try {
     $settings = Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
     $terraform = Get-Content -LiteralPath $terraformPath -Raw
     if ($policy.applications.'azuread_application.placehub_web'.display_name -ne 'placehub-frontend-development') { Stop-Safe 'APPLICATION_NAME_MISMATCH' }
-    if ($policy.applications.'azuread_application.placehub_web'.redirect_uris.Count -ne 1 -or $policy.applications.'azuread_application.placehub_web'.redirect_uris[0] -ne 'https://localhost:8443/signin-oidc') { Stop-Safe 'REDIRECT_URI_MISMATCH' }
-    if ($policy.applications.'azuread_application.placehub_web'.required_resource_access.Count -ne 0) { Stop-Safe 'UNAPPROVED_PERMISSION_DECLARATION_PRESENT' }
-    if ($terraform -match 'Place\.Read|Calendars\.Read|Place\.ReadWrite|Calendars\.ReadWrite') { Stop-Safe 'UNAPPROVED_TERRAFORM_PERMISSION_PRESENT' }
+    $redirects = @($policy.applications.'azuread_application.placehub_web'.redirect_uris)
+    if ($redirects.Count -ne 2 -or $redirects -notcontains 'https://localhost:3242/signin-oidc' -or $redirects -notcontains 'https://localhost:8443/signin-oidc') { Stop-Safe 'REDIRECT_URI_MISMATCH' }
+    $access = @($policy.applications.'azuread_application.placehub_web'.required_resource_access)
+    if ($access.Count -ne 1 -or @($access[0].resource_access).Count -ne 2) { Stop-Safe 'READ_ONLY_PERMISSION_DECLARATION_MISMATCH' }
+    if ($terraform -notmatch 'Place\.Read\.All' -or $terraform -notmatch 'Calendars\.ReadBasic' -or $terraform -match 'Place\.ReadWrite|Calendars\.ReadWrite|Exchange\.ManageAsApp') { Stop-Safe 'TERRAFORM_PERMISSION_BOUNDARY_INVALID' }
     if ($settings.Microsoft365.Mode -ne 'Microsoft365ReadOnly') { Stop-Safe 'LIVE_FIRST_DEFAULT_NOT_ENFORCED' }
     if ($settings.Microsoft365.AllowSyntheticData -ne $false) { Stop-Safe 'SYNTHETIC_DATA_ENABLED_IN_NORMAL_RUNTIME' }
     $testSettingsPath = Join-Path $RepositoryRoot 'src/PlaceHub.Web/appsettings.SyntheticTest.json'
     $testSettings = Get-Content -LiteralPath $testSettingsPath -Raw | ConvertFrom-Json
     if ($testSettings.Microsoft365.Mode -ne 'OfflineMock' -or $testSettings.Microsoft365.AllowSyntheticData -ne $true) { Stop-Safe 'SYNTHETIC_TEST_PROFILE_INVALID' }
     Write-Status 'LOCAL_READINESS_OK'
-    Write-Status 'PERMISSION_DECLARATIONS_EMPTY'
+    Write-Status 'READ_ONLY_PERMISSION_DECLARATIONS_EXACT'
     Write-Status 'LIVE_FIRST_DEFAULT_CONFIRMED'
     Write-Status 'SYNTHETIC_TEST_PROFILE_ISOLATED'
 

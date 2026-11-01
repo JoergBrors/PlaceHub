@@ -1,14 +1,14 @@
 # Microsoft 365 read-only readiness
 
-**Status:** Live-First development architecture accepted; effective permissions, consent, credential and test-tenant access are not approved or verified.
+**Status:** Real OIDC and delegated Graph implementation complete; effective consent, client-certificate registration, role/location assignments and tenant API evidence remain activation gates.
 
 ## Architecture and mode boundary
 
 `Microsoft365:Mode` accepts `Microsoft365ReadOnly` as the checked-in fail-closed normal default. `OfflineMock` is available only through the explicit `SyntheticTest` profile. Offline adapters contain no HTTP client and return deterministic synthetic records. Read-only adapters use only the allowlisted Microsoft Graph v1.0 Places GET endpoints and `POST /me/calendar/getSchedule`, whose POST semantics are read-only. No create, update, delete, event or booking-policy endpoint exists in the adapter contracts.
 
-`Microsoft365ReadOnly` fails at startup unless tenant/client identifiers, an approved confidential-client credential provider, permission approval, verified consent and tenant-capability evidence are all present. The repository deliberately configures `CredentialProvider=None`; therefore live mode cannot currently start. A mock identity is independently rejected by live authorization before token acquisition. Live errors never fall back to mock data.
+`Microsoft365ReadOnly` fails at startup unless tenant/client identifiers and the configured client certificate exist. A mock identity is independently rejected by live authorization before token acquisition. OIDC requires the exact tenant, an authenticated principal, exactly one allowlisted PlaceHub app role and one or more server-side location assignments. Live errors never fall back to mock data.
 
-The credential architecture is unresolved. No client secret, certificate, managed identity, user secret or credential environment variable was created. The exact approved callbacks remain `https://localhost:8443/signin-oidc` and `https://localhost:8443/signout-callback-oidc`; authorization code, secure server cookie, issuer/tenant/audience, nonce/state, CSRF and explicit sign-out must be enabled only together with an approved confidential-client credential and Microsoft.Identity.Web review.
+The web app uses `Microsoft.Identity.Web` authorization-code flow, secure cookie authentication and an in-memory development token cache. The local process reads a passwordless `client-auth.pfx` from the existing read-only TLS directory mount; it has no Key Vault, Exchange or provisioning credential. `scripts/Initialize-LocalEntraCertificate.ps1` creates the local private PFX and a public `client-auth.cer` without overwriting files. Registration of that public certificate in Entra remains a separately approved operation. Exact callbacks are `https://localhost:3242/signin-oidc` and `https://localhost:3242/signout-callback-oidc`; the existing `8443` sign-in redirect is preserved for compatibility.
 
 ## Verified v1.0 capability matrix
 
@@ -31,12 +31,18 @@ Microsoft Graph resource app ID is `00000003-0000-0000-c000-000000000000`.
 | Use case | Operation | Permission / immutable delegated ID | Consent | Resource/app authorization | ADR / approval |
 |---|---|---|---|---|---|
 | Optional profile | OIDC claims or `GET /me` if proven necessary | `User.Read` / `e1fe6dd8-ba31-4d61-89e7-88639da4683d` | normally user; tenant policy may differ | valid tenant/audience; app role | Proposed; not declared or approved |
-| Places hierarchy | typed Places list/descendants | `Place.Read.All` / `cb8f45a0-5c2e-4ea1-b803-84b870a7d7ec` | admin required | PlaceHub role plus assigned building/location | Architecture accepted; not declared/consented |
-| Free/busy | `POST /me/calendar/getSchedule` | `Calendars.ReadBasic` / `662d75ba-a364-42ad-adee-f5f880ea4878` | normally no admin; tenant policy may differ | PlaceHub role, location and explicit mailbox allowlist | Architecture accepted; not declared/consented |
+| Places hierarchy | typed Places list/descendants | `Place.Read.All` / `cb8f45a0-5c2e-4ea1-b803-84b870a7d7ec` | admin required | PlaceHub role plus assigned building/location | Declared in Terraform; not consented/applied by this change |
+| Free/busy | `POST /me/calendar/getSchedule` | `Calendars.ReadBasic` / `662d75ba-a364-42ad-adee-f5f880ea4878` | normally no admin; tenant policy may differ | PlaceHub role, location and explicit mailbox allowlist | Declared in Terraform; not consented/applied by this change |
 | Places administration | write endpoints | `Place.ReadWrite.All` / `4c06a06a-098a-4063-868e-5dfee3827264` | admin required plus documented Places/Exchange roles | privileged workflow | Deferred and prohibited in this phase |
 | Booking/cancel | calendar event write | `Calendars.ReadWrite` / `1ec239c2-d7c9-4623-a91a-a9775856bb36` | tenant policy dependent | organizer/resource policy | Deferred and prohibited in this phase |
 
-The Terraform policy and application resource remain unchanged with `required_resource_access: []`. Declaring a permission would expand ADR-016 policy and requires a reviewed policy change. Declaration is not consent; consent is not proof that a token contains the delegated scope; a broad Graph scope does not replace PlaceHub location authorization.
+The Terraform application and classifier policy now contain exactly the two delegated read scopes. No grant, consent, credential, role assignment or write permission resource was added. Declaration is not consent; consent is not proof that a token contains the delegated scope; a broad Graph scope does not replace PlaceHub location authorization. ADR-016 still requires a reviewed plan and separately authorized exact-plan apply.
+
+## Runtime authorization mapping
+
+Enterprise Application assignments supply exactly one `roles` claim from `PlaceHub.OfficeManager`, `PlaceHub.LocationManager` or `PlaceHub.SystemAdministrator`. Location scope is separately configured server-side using `PlaceHub__LocationAssignments__{object-id}__0={exact-place-id}`. Missing, malformed or empty mappings fail with `LOCATION_ASSIGNMENT_MISSING`; they never expand to all locations. The configured object IDs belong in protected deployment configuration, not source control.
+
+The token provider validates tenant, signed-in object, Microsoft Graph audience and effective `scp` values after Microsoft.Identity.Web acquires the delegated token. The UI reports Graph connectivity only after a successful API response. Configuration values cannot mark consent or tenant capability as verified.
 
 ## Reliability and security controls
 
@@ -51,7 +57,7 @@ The Terraform policy and application resource remain unchanged with `required_re
 
 ## Readiness tool
 
-`scripts/Test-Microsoft365Readiness.ps1` defaults to local repository inspection and performs no network call. It verifies exact callbacks, empty Terraform permission declarations, the Live-First default and isolated SyntheticTest profile. Optional tenant inspection requires both `-InspectTenant` and `-ApproveReadOnlyTenantInspection`, exact tenant/application GUIDs, existing Azure CLI authentication and tenant match. It performs only a constrained Graph GET and never infers consent from declaration.
+`scripts/Test-Microsoft365Readiness.ps1` defaults to local repository inspection and performs no network call. It verifies exact callbacks, the exact two-scope Terraform declaration, the Live-First default and isolated SyntheticTest profile. Optional tenant inspection requires both `-InspectTenant` and `-ApproveReadOnlyTenantInspection`, exact tenant/application GUIDs, existing Azure CLI authentication and tenant match. It performs only a constrained Graph GET and never infers consent from declaration.
 
 ## Recorded ADR scope
 
@@ -63,14 +69,13 @@ The Terraform policy and application resource remain unchanged with `required_re
 
 ## Activation gates
 
-1. Accept the relevant ADR-004/005/007/011 proposals.
-2. Approve a local confidential-client credential strategy and lifecycle; do not invent a secret.
-3. Approve Terraform policy expansion before declaring `Place.Read.All` or `Calendars.ReadBasic`.
-4. Obtain administrator consent where required and independently verify effective delegated scopes.
-5. Assign/test PlaceHub app roles and location mappings, including negative locations.
-6. Verify Places licensing/settings and list/descendant behavior in a non-production tenant.
-7. Validate allowed and denied resource mailboxes, time zones, throttling and privacy behavior.
-8. Complete real OIDC login/logout and token-cache integration only after the credential gate.
+1. Review the exact Terraform update and authorize an ADR-016 `plan`; authorize `apply` separately only after the classifier reports an allowed non-destructive change.
+2. Register the generated public `client-auth.cer` on the existing web application through a separately approved credential operation and define rotation/expiry ownership.
+3. Obtain administrator consent for `Place.Read.All`; verify tenant policy for `Calendars.ReadBasic` and record the effective grant.
+4. Populate `development-app-role-assignments.json` with explicitly approved user/group object IDs, approve the effective Enterprise Application assignments separately, and configure exact location mappings.
+5. Verify Places licensing/settings and typed list behavior in the development tenant.
+6. Perform real sign-in, token, Places and getSchedule tests. Only those successful API calls may change runtime status to connected.
+7. Keep provisioning identity, write scopes, Exchange operations and production activation outside this read-only approval.
 
 ## Official Microsoft evidence
 

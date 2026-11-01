@@ -3,13 +3,16 @@
   "environment": "development",
   "target_enterprise_application": "placehub-frontend-development",
   "assignments": [],
+  "effective_assignment_authorized": false,
+  "required_assignment_fields": ["principal_object_id", "principal_type", "app_role_value", "location_place_ids", "approval_reference"],
   "allowed_roles": {
     "PlaceHub.OfficeManager": "166b3fc4-fb93-401b-b856-bffa0d682447",
     "PlaceHub.LocationManager": "228e1fa0-cca2-4ac4-bc44-987ee444ba4c",
     "PlaceHub.SystemAdministrator": "9a3f940c-08c4-4bd7-8cfa-106eaab349a5"
   },
   "notes": [
-    "Assignments require exact user or group object IDs and location authorization records.",
+    "Assignments require exact explicitly approved user or group object IDs and matching server-side location Place IDs.",
+    "An Enterprise Application role assignment does not itself grant access to every location.",
     "This manifest is not consumed by active Terraform and grants no role."
   ]
 }

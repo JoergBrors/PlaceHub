@@ -1,4 +1,4 @@
-@inject DemoActorContext ActorContext
+@inject CurrentActorContext ActorContext
 <nav aria-label="Hauptnavigation">
 @foreach (var group in VisibleItems.GroupBy(x => x.Group)) {
   <span class="nav-group">@group.Key</span>

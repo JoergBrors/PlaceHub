@@ -1,17 +1,17 @@
 @page "/meine-auftraege"
 @inject AdministrationService Service
-@inject DemoActorContext ActorContext
+@inject CurrentActorContext ActorContext
 @rendermode InteractiveServer
 <PageTitle>Meine Aufträge · PlaceHub</PageTitle>
 
-<div class="page-heading"><div class="page-title"><span class="page-icon" aria-hidden="true">☷</span><div><h1>Meine Aufträge</h1><p>Eigene und standortbezogen autorisierte Ressourcenaufträge.</p></div></div><StatusBadge Text="Offline-Mock" /></div>
+<div class="page-heading"><div class="page-title"><span class="page-icon" aria-hidden="true">☷</span><div><h1>Meine Aufträge</h1><p>Lokale, standortbezogen autorisierte Ressourcenaufträge.</p></div></div><StatusBadge Text="Ausführung gesperrt" /></div>
 <div class="notice" role="status"><strong>Keine Live-Ausführung</strong>Die Ansicht verwendet den flüchtigen lokalen PoC-Speicher. Eine dauerhafte Queue und ein separater Worker warten auf ADR-017/ADR-015-Freigabe.</div>
 
 <section class="kpi-grid" aria-label="Auftragsübersicht">
  <article class="kpi-card"><div><span class="kpi-label">Offen</span><b class="kpi-value">@OpenCount</b><small class="kpi-context">Noch nicht abgeschlossen</small></div></article>
  <article class="kpi-card amber"><div><span class="kpi-label">Freigabe</span><b class="kpi-value">@Requests.Count(x=>x.State==RequestState.AwaitingApproval)</b><small class="kpi-context">Prüfung ausstehend</small></div></article>
  <article class="kpi-card"><div><span class="kpi-label">Wartet auf Worker</span><b class="kpi-value">@Requests.Count(x=>x.State==RequestState.Approved)</b><small class="kpi-context">Noch nicht gestartet</small></div></article>
- <article class="kpi-card green"><div><span class="kpi-label">Abgeschlossen</span><b class="kpi-value">@Requests.Count(x=>x.State==RequestState.Succeeded)</b><small class="kpi-context">Mock-verifiziert</small></div></article>
+ <article class="kpi-card green"><div><span class="kpi-label">Abgeschlossen</span><b class="kpi-value">@Requests.Count(x=>x.State==RequestState.Succeeded)</b><small class="kpi-context">Lokaler Workflowstatus</small></div></article>
 </section>
 
 <div class="filters"><label><span>Suche</span><input aria-label="Aufträge durchsuchen" @bind="search" @bind:event="oninput" placeholder="Nummer, Ressource oder Standort …" /></label><label><span>Status</span><select @bind="state"><option value="">Alle Status</option>@foreach(var value in Enum.GetValues<RequestState>()){<option value="@value">@Label(value)</option>}</select></label></div>

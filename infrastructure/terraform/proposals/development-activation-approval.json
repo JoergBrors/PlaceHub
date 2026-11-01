@@ -3,7 +3,7 @@
   "environment": "development",
   "tenant_id": null,
   "permission_manifest": "development-m365-permissions.json",
-  "approved_permission_names": [],
+  "approved_permission_names": ["Place.Read.All", "Calendars.ReadBasic"],
   "adr_decisions": {
     "ADR-004": "ACCEPTED_DEVELOPMENT_READS",
     "ADR-005": "ACCEPTED_READ_HIERARCHY",

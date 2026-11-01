@@ -7,7 +7,7 @@ namespace PlaceHub.Core.Tests;
 
 public sealed class Microsoft365IntegrationTests
 {
-    private static Microsoft365Options LiveOptions => new() { Mode=IntegrationMode.Microsoft365ReadOnly,TenantId="11111111-1111-1111-1111-111111111111",ClientId="22222222-2222-2222-2222-222222222222",CredentialProvider="ApprovedTestProvider",PermissionsApproved=true,ConsentVerified=true,TenantCapabilityVerified=true };
+    private static Microsoft365Options LiveOptions => new() { Mode=IntegrationMode.Microsoft365ReadOnly,TenantId="11111111-1111-1111-1111-111111111111",ClientId="22222222-2222-2222-2222-222222222222",CredentialProvider="Certificate",ClientCertificatePath=typeof(Microsoft365IntegrationTests).Assembly.Location };
     private static ReadAuthorizationContext LiveAuth(IReadOnlySet<string>? scopes=null,IReadOnlySet<string>? locations=null,IReadOnlySet<string>? mailboxes=null) => new("11111111-1111-1111-1111-111111111111","subject",PlaceHubRole.OfficeManager,locations??new HashSet<string>{"building-1"},scopes??new HashSet<string>{"Place.Read.All","Calendars.ReadBasic"},mailboxes??new HashSet<string>(StringComparer.OrdinalIgnoreCase){"p101@example.invalid"},false);
 
     [Fact] public void OfflineModeNeedsExplicitSyntheticProfile() => Microsoft365Configuration.Validate(new(){AllowSyntheticData=true});

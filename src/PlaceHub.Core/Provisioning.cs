@@ -45,6 +45,12 @@ public sealed class OfflineMockProvisioningWorker : IProvisioningWorker
     }
 }
 
+public sealed class DisabledProvisioningWorker : IProvisioningWorker
+{
+    public Task<ProvisioningResult> ExecuteAsync(AdministrationRequest request, CancellationToken cancellationToken) =>
+        throw new WorkflowException("PRIVILEGED_EXECUTION_NOT_ACTIVATED");
+}
+
 public sealed class AdministrationService(IAdministrationRepository repository, IProvisioningWorker worker)
 {
     public AdministrationRequest Create(ResourceSpecification specification, Actor actor, string idempotencyKey)

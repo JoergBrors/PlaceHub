@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $script = Join-Path $root 'scripts/Test-Microsoft365Readiness.ps1'
 $result = & $script -RepositoryRoot $root
-foreach ($expected in @('LOCAL_READINESS_OK','PERMISSION_DECLARATIONS_EMPTY','LIVE_FIRST_DEFAULT_CONFIRMED','SYNTHETIC_TEST_PROFILE_ISOLATED','TENANT_INSPECTION_NOT_REQUESTED')) { if ($result -notcontains $expected) { throw 'READINESS_STATUS_MISSING' } }
+foreach ($expected in @('LOCAL_READINESS_OK','READ_ONLY_PERMISSION_DECLARATIONS_EXACT','LIVE_FIRST_DEFAULT_CONFIRMED','SYNTHETIC_TEST_PROFILE_ISOLATED','TENANT_INSPECTION_NOT_REQUESTED')) { if ($result -notcontains $expected) { throw 'READINESS_STATUS_MISSING' } }
 $settings = Get-Content -LiteralPath (Join-Path $root 'src/PlaceHub.Web/appsettings.json') -Raw | ConvertFrom-Json
 if ($settings.Microsoft365.AllowSyntheticData -ne $false) { throw 'SYNTHETIC_DATA_ENABLED_IN_NORMAL_RUNTIME' }
 $source = Get-Content -LiteralPath $script -Raw

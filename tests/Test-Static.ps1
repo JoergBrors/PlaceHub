@@ -143,12 +143,13 @@ foreach ($classification in @('NO_CHANGE','CREATE_ONLY','UPDATE_ONLY','CREATE_AN
 }
 Assert-True ($classifier -match "terraform_version.+policy\.terraform_version" -and $classifier -match 'format_version') 'Classifier does not pin structured-plan compatibility.'
 Assert-Absent $classifier '(?i)Write-(Host|Output|Error).*(PlanJson|PlanPath|before|after|exception\.message)' 'Classifier may print sensitive plan content.'
-Assert-True ($developmentPolicy -match '"policy_version": "2026-10-31\.1"' -and $developmentPolicy -match 'https://localhost:8443/signin-oidc') 'Development policy version or exact redirect URI is missing.'
+Assert-True ($developmentPolicy -match '"policy_version": "2026-10-31\.1"' -and $developmentPolicy -match 'https://localhost:3242/signin-oidc' -and $developmentPolicy -match 'https://localhost:8443/signin-oidc') 'Development policy version or exact redirect URIs are missing.'
 foreach ($resourceAddress in @('azuread_application.placehub_web','azuread_service_principal.placehub_web','azuread_application.m365_provisioning','azuread_service_principal.m365_provisioning')) {
     Assert-True ($developmentPolicy.Contains($resourceAddress)) "Development allowlist is missing $resourceAddress."
 }
 Assert-True (($entraTerraform | Select-String -Pattern '(?m)^resource "azuread_(application|service_principal)"' -AllMatches).Matches.Count -eq 4) 'Unexpected Entra Terraform resource count.'
-Assert-Absent $entraTerraform '(?i)azuread_(app_role_assignment|application_password|service_principal_password|application_certificate)|required_resource_access|Exchange\.ManageAsApp|Application\.ReadWrite' 'Terraform must not grant consent, permissions, credentials or role assignments.'
+Assert-Absent $entraTerraform '(?i)azuread_(app_role_assignment|application_password|service_principal_password|application_certificate)|Exchange\.ManageAsApp|Application\.ReadWrite|Place\.ReadWrite|Calendars\.ReadWrite' 'Terraform must not grant consent, credentials, role assignments or write permissions.'
+Assert-True ($entraTerraform -match 'required_resource_access' -and $entraTerraform -match 'Place\.Read\.All' -and $entraTerraform -match 'Calendars\.ReadBasic') 'Exact read-only Graph permission declarations are missing.'
 Assert-Absent $entraTerraform '(?m)^resource "azurerm_' 'Paid Azure application resources are forbidden.'
 
 # Exercise the command wrapper with synthetic secret-like values. Native stdout/stderr and arguments must not escape on failure.

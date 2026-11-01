@@ -17,10 +17,8 @@ public sealed record Microsoft365Options
     public string ClientId { get; init; } = "";
     public string CallbackPath { get; init; } = "/signin-oidc";
     public string SignedOutCallbackPath { get; init; } = "/signout-callback-oidc";
+    public string ClientCertificatePath { get; init; } = "";
     public string CredentialProvider { get; init; } = "None";
-    public bool PermissionsApproved { get; init; }
-    public bool ConsentVerified { get; init; }
-    public bool TenantCapabilityVerified { get; init; }
     public bool AllowSyntheticData { get; init; }
 }
 
@@ -31,31 +29,37 @@ public static class Microsoft365Configuration
         if (options.Mode == IntegrationMode.OfflineMock)
         {
             if (!options.AllowSyntheticData) throw new IntegrationConfigurationException("SYNTHETIC_PROFILE_NOT_EXPLICITLY_ENABLED");
-            if (!string.IsNullOrWhiteSpace(options.TenantId) || !string.IsNullOrWhiteSpace(options.ClientId) || options.CredentialProvider != "None" || options.PermissionsApproved || options.ConsentVerified || options.TenantCapabilityVerified)
+            if (!string.IsNullOrWhiteSpace(options.TenantId) || !string.IsNullOrWhiteSpace(options.ClientId) || options.CredentialProvider != "None")
                 throw new IntegrationConfigurationException("MOCK_LIVE_CONFIGURATION_CONFLICT");
             return;
         }
         if (!Guid.TryParse(options.TenantId, out _) || !Guid.TryParse(options.ClientId, out _)) throw new IntegrationConfigurationException("ENTRA_IDENTIFIERS_INVALID");
         if (options.CallbackPath != "/signin-oidc" || options.SignedOutCallbackPath != "/signout-callback-oidc") throw new IntegrationConfigurationException("OIDC_CALLBACK_INVALID");
-        if (options.CredentialProvider == "None") throw new IntegrationConfigurationException("CONFIDENTIAL_CLIENT_CREDENTIAL_UNAVAILABLE");
-        if (!options.PermissionsApproved) throw new IntegrationConfigurationException("PERMISSIONS_NOT_APPROVED");
-        if (!options.ConsentVerified) throw new IntegrationConfigurationException("CONSENT_NOT_VERIFIED");
-        if (!options.TenantCapabilityVerified) throw new IntegrationConfigurationException("TENANT_CAPABILITY_NOT_VERIFIED");
+        if (!options.CredentialProvider.Equals("Certificate", StringComparison.Ordinal)) throw new IntegrationConfigurationException("CONFIDENTIAL_CLIENT_CREDENTIAL_UNAVAILABLE");
+        if (string.IsNullOrWhiteSpace(options.ClientCertificatePath) || !File.Exists(options.ClientCertificatePath)) throw new IntegrationConfigurationException("CLIENT_CERTIFICATE_UNAVAILABLE");
     }
 }
 
 public sealed record IntegrationReadinessItem(string Name, string State, string Code);
-public sealed class IntegrationReadinessService(Microsoft365Options options)
+public sealed class IntegrationRuntimeState
+{
+    private string code = "GRAPH_NOT_YET_VERIFIED";
+    public string Code => Volatile.Read(ref code);
+    public bool GraphVerified => Code == "GRAPH_API_ACCESS_VERIFIED";
+    public void Success() => Volatile.Write(ref code, "GRAPH_API_ACCESS_VERIFIED");
+    public void Failure(string safeCode) => Volatile.Write(ref code, safeCode);
+}
+public sealed class IntegrationReadinessService(Microsoft365Options options, IntegrationRuntimeState runtime)
 {
     public IntegrationMode Mode => options.Mode;
     public IReadOnlyList<IntegrationReadinessItem> GetStatus() =>
     [
         new("Entra-Konfiguration", HasIdentifiers ? "Konfiguriert" : "Nicht konfiguriert", HasIdentifiers ? "ENTRA_CONFIGURATION_PRESENT" : "ENTRA_CONFIGURATION_MISSING"),
         new("Confidential-Client-Credential", options.CredentialProvider != "None" ? "Konfiguriert" : "Nicht genehmigt", options.CredentialProvider != "None" ? "CREDENTIAL_PROVIDER_PRESENT" : "CREDENTIAL_PROVIDER_UNAVAILABLE"),
-        new("Place.Read.All", options.PermissionsApproved ? "Genehmigt" : "Nicht genehmigt", options.PermissionsApproved ? "PERMISSION_APPROVED" : "PERMISSION_NOT_APPROVED"),
-        new("Admin Consent", options.ConsentVerified ? "Consent verifiziert" : "Nicht verifiziert", options.ConsentVerified ? "CONSENT_VERIFIED" : "CONSENT_NOT_VERIFIED"),
-        new("Places-Tenantfähigkeit", options.TenantCapabilityVerified ? "Verifiziert" : "Nicht verifiziert", options.TenantCapabilityVerified ? "TENANT_CAPABILITY_VERIFIED" : "TENANT_CAPABILITY_UNKNOWN"),
-        new("Live-Netzwerkzugriff", options.Mode == IntegrationMode.Microsoft365ReadOnly ? "Read-only angefordert" : "Gesperrt", options.Mode == IntegrationMode.Microsoft365ReadOnly ? "READ_ONLY_MODE" : "OFFLINE_NETWORK_BLOCKED")
+        new("Berechtigungsdeklaration", options.Mode == IntegrationMode.Microsoft365ReadOnly ? "Read-only deklariert" : "Nicht aktiv", options.Mode == IntegrationMode.Microsoft365ReadOnly ? "READ_ONLY_SCOPES_DECLARED" : "PERMISSION_DECLARATION_INACTIVE"),
+        new("Effektiver Consent", runtime.GraphVerified ? "Durch Token und API bestätigt" : "Nicht durch API bestätigt", runtime.GraphVerified ? "EFFECTIVE_CONSENT_VERIFIED" : "EFFECTIVE_CONSENT_UNVERIFIED"),
+        new("Places-Tenantfähigkeit", runtime.GraphVerified ? "Durch Graph bestätigt" : "Nicht bestätigt", runtime.GraphVerified ? "TENANT_CAPABILITY_VERIFIED" : "TENANT_CAPABILITY_UNKNOWN"),
+        new("Live-Netzwerkzugriff", runtime.GraphVerified ? "Graph-Zugriff verifiziert" : "Noch nicht verifiziert", runtime.Code)
     ];
     private bool HasIdentifiers => Guid.TryParse(options.TenantId, out _) && Guid.TryParse(options.ClientId, out _);
 }
@@ -128,7 +132,7 @@ public sealed class OfflineAvailabilityReader : IAvailabilityReader
     }
 }
 
-public sealed class GraphPlacesReader(HttpClient httpClient, IDelegatedTokenProvider tokenProvider, Microsoft365Options options) : IPlacesReader
+public sealed class GraphPlacesReader(HttpClient httpClient, IDelegatedTokenProvider tokenProvider, Microsoft365Options options, IntegrationRuntimeState? runtime = null) : IPlacesReader
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly IReadOnlySet<string> Scopes = new HashSet<string>(StringComparer.Ordinal) { "Place.Read.All" };
@@ -146,7 +150,9 @@ public sealed class GraphPlacesReader(HttpClient httpClient, IDelegatedTokenProv
         authorization.DemandTenant(options.TenantId);
         if (authorization.LocationIds.Count == 0) throw new IntegrationAuthorizationException("LOCATION_ASSIGNMENT_MISSING");
         foreach (var location in authorization.LocationIds) authorization.Demand("Place.Read.All", location);
-        var token = await tokenProvider.GetTokenAsync(Scopes, cancellationToken);
+        string token;
+        try { token = await tokenProvider.GetTokenAsync(Scopes, cancellationToken); }
+        catch (IntegrationException ex) { runtime?.Failure(ex.Code); throw; }
         var now = DateTimeOffset.UtcNow; var records = new List<PlaceRecord>();
         foreach (var (type, odata, select) in Types)
         {
@@ -159,6 +165,7 @@ public sealed class GraphPlacesReader(HttpClient httpClient, IDelegatedTokenProv
             }
         }
         var allowed = FilterAuthorizedHierarchy(records, authorization.LocationIds);
+        runtime?.Success();
         return new(allowed, "Microsoft365ReadOnly", now);
     }
 
@@ -211,19 +218,22 @@ public sealed class GraphPlacesReader(HttpClient httpClient, IDelegatedTokenProv
     private sealed record MailboxDetails(string? EmailAddress);
 }
 
-public sealed class GraphAvailabilityReader(HttpClient httpClient, IDelegatedTokenProvider tokenProvider, Microsoft365Options options) : IAvailabilityReader
+public sealed class GraphAvailabilityReader(HttpClient httpClient, IDelegatedTokenProvider tokenProvider, Microsoft365Options options, IntegrationRuntimeState? runtime = null) : IAvailabilityReader
 {
     private static readonly IReadOnlySet<string> Scopes = new HashSet<string>(StringComparer.Ordinal) { "Calendars.ReadBasic" };
     public async Task<IReadOnlyList<ResourceAvailability>> ReadAsync(AvailabilityRequest request, ReadAuthorizationContext authorization, CancellationToken cancellationToken)
     {
         OfflineAvailabilityReader.ValidateAvailabilityRequest(request); authorization.DemandTenant(options.TenantId); authorization.Demand("Calendars.ReadBasic", request.LocationId);
         if (request.ResourceMailboxes.Any(x => !authorization.ResourceMailboxes.Contains(x))) throw new IntegrationAuthorizationException("RESOURCE_MAILBOX_OUT_OF_SCOPE");
-        var token = await tokenProvider.GetTokenAsync(Scopes, cancellationToken);
+        string token;
+        try { token = await tokenProvider.GetTokenAsync(Scopes, cancellationToken); }
+        catch (IntegrationException ex) { runtime?.Failure(ex.Code); throw; }
         using var message = new HttpRequestMessage(HttpMethod.Post, "me/calendar/getSchedule"); message.Headers.Authorization = new("Bearer", token); message.Headers.TryAddWithoutValidation("Prefer", $"outlook.timezone=\"{request.WindowsTimeZone}\"");
         message.Content = JsonContent.Create(new { schedules=request.ResourceMailboxes, startTime=new { dateTime=request.Start.ToString("yyyy-MM-ddTHH:mm:ss"), timeZone=request.WindowsTimeZone }, endTime=new { dateTime=request.End.ToString("yyyy-MM-ddTHH:mm:ss"), timeZone=request.WindowsTimeZone }, availabilityViewInterval=30 });
         using var response = await httpClient.SendAsync(message, cancellationToken);
         if (!response.IsSuccessStatusCode) throw new IntegrationException(response.StatusCode == HttpStatusCode.Forbidden ? "GRAPH_PERMISSION_DENIED" : "GRAPH_AVAILABILITY_FAILED");
         var payload = await response.Content.ReadFromJsonAsync<ScheduleResponse>(cancellationToken: cancellationToken) ?? throw new IntegrationException("GRAPH_RESPONSE_INVALID");
+        runtime?.Success();
         return (payload.Value ?? []).Select(x => new ResourceAvailability(x.ScheduleId ?? "unknown", FromAvailabilityView(x.AvailabilityView), request.Start, request.End, "Microsoft365ReadOnly")).ToArray();
     }
     private static AvailabilityState FromAvailabilityView(string? view) => string.IsNullOrWhiteSpace(view) ? AvailabilityState.Unknown : view.All(x => x == '0') ? AvailabilityState.Free : view.Any(x => x is '2' or '3') ? AvailabilityState.Busy : view.Any(x => x == '1') ? AvailabilityState.Tentative : AvailabilityState.Unknown;

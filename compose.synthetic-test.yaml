@@ -8,6 +8,8 @@ services:
       Microsoft365__TenantId: ""
       Microsoft365__ClientId: ""
       Microsoft365__CredentialProvider: None
+      Microsoft365__ClientCertificatePath: ""
+      Microsoft365__ClientCertificates: ""
       Microsoft365__PermissionsApproved: "false"
       Microsoft365__ConsentVerified: "false"
       Microsoft365__TenantCapabilityVerified: "false"

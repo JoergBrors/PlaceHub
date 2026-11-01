@@ -1,5 +1,5 @@
 {
-  "status": "PROPOSED_NOT_APPROVED",
+  "status": "DECLARATION_APPROVED_CONSENT_GATED",
   "environment": "development",
   "target_policy_version": "2026-11-01.proposed",
   "automatic_apply_allowed": false,
@@ -9,9 +9,8 @@
   },
   "applications": {
     "placehub-frontend-development": [
-      { "name": "Place.Read.All", "id": "cb8f45a0-5c2e-4ea1-b803-84b870a7d7ec", "type": "Scope", "resource": "microsoft_graph", "approval": "REQUIRED" },
-      { "name": "Calendars.ReadBasic", "id": "662d75ba-a364-42ad-adee-f5f880ea4878", "type": "Scope", "resource": "microsoft_graph", "approval": "REQUIRED" },
-      { "name": "Calendars.ReadWrite", "id": "1ec239c2-d7c9-4623-a91a-a9775856bb36", "type": "Scope", "resource": "microsoft_graph", "approval": "ADR_007_REQUIRED" }
+      { "name": "Place.Read.All", "id": "cb8f45a0-5c2e-4ea1-b803-84b870a7d7ec", "type": "Scope", "resource": "microsoft_graph", "approval": "DECLARATION_APPROVED_CONSENT_REQUIRED" },
+      { "name": "Calendars.ReadBasic", "id": "662d75ba-a364-42ad-adee-f5f880ea4878", "type": "Scope", "resource": "microsoft_graph", "approval": "DECLARATION_APPROVED_CONSENT_REQUIRED" }
     ],
     "placehub-m365-provisioning-development": [
       { "name": "Place.ReadWrite.All", "id": "f1f5e9aa-ad18-4b97-883e-6aa7e95b7a5f", "type": "Role", "resource": "microsoft_graph", "approval": "ADR_005_015_REQUIRED" },

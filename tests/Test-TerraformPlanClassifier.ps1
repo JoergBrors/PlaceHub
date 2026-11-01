@@ -21,11 +21,11 @@ function New-WebAfter {
             @{ value='PlaceHub.LocationManager'; id='228e1fa0-cca2-4ac4-bc44-987ee444ba4c'; enabled=$true; allowed_member_types=@('User') },
             @{ value='PlaceHub.SystemAdministrator'; id='9a3f940c-08c4-4bd7-8cfa-106eaab349a5'; enabled=$true; allowed_member_types=@('User') }
         )
-        required_resource_access = @()
+        required_resource_access = @([ordered]@{ resource_app_id='00000003-0000-0000-c000-000000000000'; resource_access=@([ordered]@{id='662d75ba-a364-42ad-adee-f5f880ea4878';type='Scope'},[ordered]@{id='cb8f45a0-5c2e-4ea1-b803-84b870a7d7ec';type='Scope'}) })
         web = @{
-            homepage_url='https://localhost:8443/'
-            logout_url='https://localhost:8443/signout-callback-oidc'
-            redirect_uris=@('https://localhost:8443/signin-oidc')
+            homepage_url='https://localhost:3242/'
+            logout_url='https://localhost:3242/signout-callback-oidc'
+            redirect_uris=@('https://localhost:3242/signin-oidc','https://localhost:8443/signin-oidc')
             implicit_grant=@{ access_token_issuance_enabled=$false; id_token_issuance_enabled=$false }
         }
     }
@@ -71,7 +71,7 @@ try {
     Invoke-Case owner-removal @(New-Change azuread_service_principal.placehub_web azuread_service_principal @('update') $beforeOwner $sp) DESTRUCTIVE_CHANGE 0 $ownerCanary
 
     $permissionBefore = New-WebAfter
-    $permissionBefore.required_resource_access = @(@{ resource_app_id='00000003-0000-0000-c000-000000000000'; resource_access=@(@{id='synthetic-sensitive-id';type='Scope'}) })
+    $permissionBefore.required_resource_access = @(@{ resource_app_id='00000003-0000-0000-c000-000000000000'; resource_access=@(@{id='662d75ba-a364-42ad-adee-f5f880ea4878';type='Scope'},@{id='cb8f45a0-5c2e-4ea1-b803-84b870a7d7ec';type='Scope'},@{id='synthetic-sensitive-id';type='Scope'}) })
     Invoke-Case permission-removal @(New-Change azuread_application.placehub_web azuread_application @('update') $permissionBefore $web) DESTRUCTIVE_CHANGE 0 'synthetic-sensitive-id'
     Invoke-Case unknown-action @(New-Change azuread_application.placehub_web azuread_application @('future-action') $null $web) UNKNOWN_OR_UNVERIFIABLE 1
     Invoke-Case unknown-value @(New-Change azuread_application.placehub_web azuread_application @('create') $null $web @{ owners=$true }) UNKNOWN_OR_UNVERIFIABLE 1 $null owners

@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 namespace PlaceHub.Core;
 
 public enum IntegrationMode { OfflineMock, Microsoft365ReadOnly }
-public enum PlaceType { Building, Floor, Section, Workspace, Desk }
+public enum PlaceType { Building, Floor, Section, Workspace, Desk, Room }
 public enum AvailabilityState { Free, Busy, Tentative, OutOfOffice, Unknown }
 
 public sealed record Microsoft365Options
@@ -84,7 +84,7 @@ public sealed record ReadAuthorizationContext(
 }
 
 public sealed record PlaceRecord(string Id, string? ParentId, PlaceType Type, string DisplayName, int? Capacity, string? EmailAddress, string? OperationalState, string DataSource, DateTimeOffset ReadAt, string? StablePlaceId = null, DateTimeOffset? SourceUpdatedAt = null);
-public sealed record PlacesSnapshot(IReadOnlyList<PlaceRecord> Places, string DataSource, DateTimeOffset ReadAt);
+public sealed record PlacesSnapshot(IReadOnlyList<PlaceRecord> Places, string DataSource, DateTimeOffset ReadAt, IReadOnlyDictionary<string, int>? ListCounts = null, int DirectLookups = 0);
 public sealed record AvailabilityRequest(string LocationId, IReadOnlyList<string> ResourceMailboxes, DateTimeOffset Start, DateTimeOffset End, string WindowsTimeZone);
 public sealed record ResourceAvailability(string ResourceMailbox, AvailabilityState State, DateTimeOffset Start, DateTimeOffset End, string DataSource);
 
@@ -142,7 +142,8 @@ public sealed class GraphPlacesReader(HttpClient httpClient, IDelegatedTokenProv
         (PlaceType.Floor,"microsoft.graph.floor","id,placeId,parentId,displayName,lastUpdatedTime"),
         (PlaceType.Section,"microsoft.graph.section","id,placeId,parentId,displayName,lastUpdatedTime"),
         (PlaceType.Workspace,"microsoft.graph.workspace","id,placeId,parentId,displayName,capacity,emailAddress,lastUpdatedTime"),
-        (PlaceType.Desk,"microsoft.graph.desk","id,placeId,parentId,displayName,lastUpdatedTime")
+        (PlaceType.Desk,"microsoft.graph.desk","id,placeId,parentId,displayName,lastUpdatedTime"),
+        (PlaceType.Room,"microsoft.graph.room","id,placeId,parentId,displayName,capacity,emailAddress,lastUpdatedTime")
     ];
 
     public async Task<PlacesSnapshot> ReadHierarchyAsync(ReadAuthorizationContext authorization, CancellationToken cancellationToken)
@@ -164,10 +165,71 @@ public sealed class GraphPlacesReader(HttpClient httpClient, IDelegatedTokenProv
                 records.Add(new(id, item.ParentId, type, item.DisplayName ?? "Unbekannt", item.Capacity, item.EmailAddress ?? item.MailboxDetails?.EmailAddress, null, "Microsoft365ReadOnly", now, item.PlaceId, item.LastUpdatedTime));
             }
         }
+        var listCounts = records.GroupBy(r => r.Type).ToDictionary(g => g.Key.ToString(), g => g.Count());
+        var lookups = await ResolveDirectAsync(records, authorization.LocationIds, token, cancellationToken);
         var allowed = FilterAuthorizedHierarchy(NormalizeParents(records), authorization.LocationIds);
         runtime?.Success();
-        return new(allowed, "Microsoft365ReadOnly", now);
+        return new(allowed, "Microsoft365ReadOnly", now, listCounts, lookups);
     }
+
+    private const int MaxDirectLookups = 40;
+
+    /// <summary>
+    /// Collection endpoints can lag behind the directory (newly created places are readable by id before they are listed).
+    /// The assigned buildings are therefore fetched by id, and parents of listed places that are missing are resolved upward by id.
+    /// Lookups are bounded; nothing outside the assigned buildings' subtree is ever returned.
+    /// </summary>
+    private async Task<int> ResolveDirectAsync(List<PlaceRecord> records, IReadOnlySet<string> locations, string token, CancellationToken cancellationToken)
+    {
+        var index = new Dictionary<string, PlaceRecord>(StringComparer.OrdinalIgnoreCase); var missing = new HashSet<string>(StringComparer.OrdinalIgnoreCase); var lookups = 0;
+        void Add(PlaceRecord r) { index[r.Id] = r; if (r.StablePlaceId is not null) index.TryAdd(r.StablePlaceId, r); }
+        foreach (var r in records) Add(r);
+        async Task<PlaceRecord?> Resolve(string id)
+        {
+            if (index.TryGetValue(id, out var known)) return known;
+            if (missing.Contains(id) || lookups >= MaxDirectLookups || !PlacesWriteSpec.IsSafeId(id)) return null;
+            lookups++;
+            var found = await GetPlaceAsync(id, token, cancellationToken);
+            if (found is null) { missing.Add(id); return null; }
+            return found;
+        }
+        foreach (var location in locations)
+        {
+            var building = await Resolve(location);
+            if (building is { Type: PlaceType.Building } && !index.ContainsKey(building.Id)) { records.Add(building); Add(building); }
+        }
+        foreach (var start in records.ToArray())
+        {
+            var current = start;
+            for (var depth = 0; depth < 6 && current.ParentId is not null; depth++)
+            {
+                if (index.TryGetValue(current.ParentId, out var parent)) { current = parent; continue; }
+                var resolved = await Resolve(current.ParentId);
+                if (resolved is null) break;
+                if (!index.ContainsKey(resolved.Id)) { records.Add(resolved); Add(resolved); }
+                current = resolved;
+            }
+        }
+        return lookups;
+    }
+
+    private async Task<PlaceRecord?> GetPlaceAsync(string id, string token, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri($"places/{Uri.EscapeDataString(id)}", UriKind.Relative)); request.Headers.Authorization = new("Bearer", token);
+        try
+        {
+            using var response = await SendWithRetryAsync(request, cancellationToken);
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            var item = await JsonSerializer.DeserializeAsync<GraphPlace>(stream, JsonOptions, cancellationToken);
+            var type = ODataToType(item?.ODataType);
+            var key = item?.Id ?? item?.PlaceId;
+            if (item is null || type is null || string.IsNullOrWhiteSpace(key)) return null;
+            return new(key, item.ParentId, type.Value, item.DisplayName ?? "Unbekannt", item.Capacity, item.EmailAddress ?? item.MailboxDetails?.EmailAddress, null, "Microsoft365ReadOnly", DateTimeOffset.UtcNow, item.PlaceId, item.LastUpdatedTime);
+        }
+        catch (IntegrationException ex) when (ex.Code == "TENANT_CAPABILITY_UNAVAILABLE") { return null; }
+    }
+
+    private static PlaceType? ODataToType(string? odata) => Types.Where(t => odata is not null && odata.EndsWith(t.ODataType, StringComparison.OrdinalIgnoreCase)).Select(t => (PlaceType?)t.Type).FirstOrDefault();
 
     // Graph documents id as mutable and placeId as the stable identifier; parentId may reference either form.
     internal static IReadOnlyList<PlaceRecord> NormalizeParents(IReadOnlyList<PlaceRecord> records)
@@ -224,7 +286,7 @@ public sealed class GraphPlacesReader(HttpClient httpClient, IDelegatedTokenProv
     }
 
     private sealed record GraphPage([property:JsonPropertyName("value")] GraphPlace[]? Value, [property:JsonPropertyName("@odata.nextLink")] string? NextLink);
-    private sealed record GraphPlace(string? Id, string? PlaceId, string? ParentId, string? DisplayName, int? Capacity, string? EmailAddress, MailboxDetails? MailboxDetails, DateTimeOffset? LastUpdatedTime);
+    private sealed record GraphPlace(string? Id, string? PlaceId, string? ParentId, string? DisplayName, int? Capacity, string? EmailAddress, MailboxDetails? MailboxDetails, DateTimeOffset? LastUpdatedTime, [property:JsonPropertyName("@odata.type")] string? ODataType = null);
     private sealed record MailboxDetails(string? EmailAddress);
 }
 

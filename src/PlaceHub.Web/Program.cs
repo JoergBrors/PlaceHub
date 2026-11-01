@@ -49,6 +49,7 @@ if (microsoft365.Mode == IntegrationMode.Microsoft365ReadOnly)
         options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
         options.Cookie.SameSite = SameSiteMode.Lax;
         options.SlidingExpiration = false;
+        options.AccessDeniedPath = "/auth/denied";
         options.ExpireTimeSpan = TimeSpan.FromHours(8);
     });
     builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.AuthenticationScheme, options =>
@@ -72,7 +73,7 @@ else
     builder.Services.AddAuthorization();
     builder.Services.AddSingleton<IDelegatedTokenProvider, UnavailableDelegatedTokenProvider>();
 }
-builder.Services.AddScoped<CurrentActorContext>();
+builder.Services.AddScoped(sp => CurrentActorContext.CreateForRequest(sp.GetRequiredService<IHttpContextAccessor>(), sp.GetRequiredService<IConfiguration>(), sp.GetRequiredService<Microsoft365Options>(), sp.GetService<Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider>()));
 if (microsoft365.Mode == IntegrationMode.OfflineMock)
 {
     builder.Services.AddSingleton<IPlacesReader, OfflinePlacesReader>();
@@ -100,6 +101,7 @@ if (microsoft365.Mode == IntegrationMode.Microsoft365ReadOnly)
     app.MapGet("/auth/signin", async context => await context.ChallengeAsync(OpenIdConnectDefaults.AuthenticationScheme, new AuthenticationProperties { RedirectUri = "/" })).AllowAnonymous();
     app.MapGet("/auth/signout", async context => await context.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme, new AuthenticationProperties { RedirectUri = "/" }));
 }
+app.MapGet("/auth/denied", () => Results.Text("Zugriff verweigert: Es fehlt genau eine PlaceHub-Anwendungsrolle oder eine Standortzuweisung.", statusCode: StatusCodes.Status403Forbidden)).AllowAnonymous();
 app.MapGet("/health/live", () => Results.Ok(new { status = "healthy", mode = microsoft365.Mode.ToString() })).AllowAnonymous();
 app.Run();
 

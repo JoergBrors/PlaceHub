@@ -55,6 +55,9 @@ try {
     $sp = @{ owners=@('synthetic-owner'); app_role_assignment_required=$true }
     Invoke-Case no-change @() NO_CHANGE
     Invoke-Case create @(New-Change azuread_application.placehub_web azuread_application @('create') $null $web) CREATE_ONLY
+    $terraformOrdered = New-WebAfter
+    $terraformOrdered.required_resource_access = @([ordered]@{ resource_access=@([ordered]@{id='cb8f45a0-5c2e-4ea1-b803-84b870a7d7ec';type='Scope'},[ordered]@{id='662d75ba-a364-42ad-adee-f5f880ea4878';type='Scope'}); resource_app_id='00000003-0000-0000-c000-000000000000' })
+    Invoke-Case required-access-key-and-permission-order-insensitive @(New-Change azuread_application.placehub_web azuread_application @('create') $null $terraformOrdered) CREATE_ONLY
     Invoke-Case create-with-computed-id @(New-Change azuread_application.placehub_web azuread_application @('create') $null $web @{ app_role_ids=$true; client_id=$true; feature_tags=$true; id=$true; object_id=$true; tags=$true }) CREATE_ONLY
     Invoke-Case service-principal-computed-outputs @(New-Change azuread_service_principal.placehub_web azuread_service_principal @('create') $null $sp @{ app_roles=$true; application_tenant_id=$true; client_id=$true; display_name=$true; homepage_url=$true; id=$true; object_id=$true; redirect_uris=$true; service_principal_names=$true; sign_in_audience=$true; tags=$true; type=$true }) CREATE_ONLY
     Invoke-Case update @(New-Change azuread_service_principal.placehub_web azuread_service_principal @('update') $sp $sp) UPDATE_ONLY

@@ -39,6 +39,20 @@ public sealed class Microsoft365IntegrationTests
         var reader=new GraphPlacesReader(Client(handler),new FixedTokenProvider(),LiveOptions);var snapshot=await reader.ReadHierarchyAsync(LiveAuth(),default);Assert.Contains(snapshot.Places,x=>x.Id=="workspace-1"&&x.Capacity==12);Assert.DoesNotContain(snapshot.Places,x=>x.Id is "building-2" or "floor-2");Assert.True(calls>=6);
     }
 
+    [Fact] public async Task GraphPlacesResolvesParentsByStablePlaceIdAndAuthorizesByEither()
+    {
+        var handler=new StubHandler(request=>{var path=request.RequestUri!.AbsolutePath;
+            if(path.EndsWith("microsoft.graph.building"))return Json("{\"value\":[{\"id\":\"b-mutable\",\"placeId\":\"b-stable\",\"displayName\":\"Berlin\",\"lastUpdatedTime\":\"2026-10-01T08:00:00Z\"}]}");
+            if(path.EndsWith("microsoft.graph.floor"))return Json("{\"value\":[{\"id\":\"f-1\",\"placeId\":\"f-stable\",\"parentId\":\"b-stable\",\"displayName\":\"3\"}]}");
+            if(path.EndsWith("microsoft.graph.section"))return Json("{\"value\":[{\"id\":\"s-1\",\"parentId\":\"f-1\",\"displayName\":\"Nord\"}]}");
+            return Json("{\"value\":[]}");});
+        var reader=new GraphPlacesReader(Client(handler),new FixedTokenProvider(),LiveOptions);
+        var snapshot=await reader.ReadHierarchyAsync(LiveAuth(locations:new HashSet<string>{"b-stable"}),default);
+        Assert.Equal(["b-mutable","f-1","s-1"],snapshot.Places.Select(x=>x.Id).ToArray());
+        Assert.Equal("b-mutable",snapshot.Places.Single(x=>x.Id=="f-1").ParentId);
+        Assert.Equal(DateTimeOffset.Parse("2026-10-01T08:00:00Z"),snapshot.Places[0].SourceUpdatedAt);
+    }
+
     [Fact] public async Task GraphPlacesTranslatesForbidden()
     { var reader=new GraphPlacesReader(Client(new StubHandler(_=>new(HttpStatusCode.Forbidden))),new FixedTokenProvider(),LiveOptions);var ex=await Assert.ThrowsAsync<IntegrationException>(()=>reader.ReadHierarchyAsync(LiveAuth(),default));Assert.Equal("GRAPH_PERMISSION_DENIED",ex.Code); }
 

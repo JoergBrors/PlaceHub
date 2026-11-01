@@ -9,18 +9,18 @@
 @if(error is not null){<div class="notice" role="alert"><strong>Microsoft 365 nicht verfügbar</strong>@error. Es werden keine Mock-Daten als Live-Daten angezeigt.</div>}
 else if(loading){<div class="notice" role="status"><strong>Microsoft Graph wird gelesen</strong>Die Anmeldung und effektiven Berechtigungen werden geprüft.</div>}
 else{
-<div class="notice" role="status"><strong>Datenquelle: @source</strong>Letzter erfolgreicher Graph-Lesezugriff: @readAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss").</div>
+<div class="notice" role="status"><strong>Datenquelle: @source</strong>Letzter erfolgreicher Graph-Lesezugriff (Abrufzeit): @readAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss").</div>
 <section class="kpi-grid" aria-label="Kennzahlen">
  <article class="kpi-card"><span class="kpi-icon">▥</span><div><span class="kpi-label">Gebäude</span><b class="kpi-value">@Count(PlaceType.Building)</b><small class="kpi-context">Microsoft Graph Places</small></div></article>
  <article class="kpi-card"><span class="kpi-icon">≡</span><div><span class="kpi-label">Etagen</span><b class="kpi-value">@Count(PlaceType.Floor)</b><small class="kpi-context">Autorisierte Hierarchie</small></div></article>
  <article class="kpi-card"><span class="kpi-icon">♧</span><div><span class="kpi-label">Workspaces</span><b class="kpi-value">@Count(PlaceType.Workspace)</b><small class="kpi-context">Keine synthetischen Einträge</small></div></article>
- <article class="kpi-card green"><span class="kpi-icon">▱</span><div><span class="kpi-label">Schreibtische</span><b class="kpi-value">@Count(PlaceType.Desk)</b><small class="kpi-context">Graph-Zugriff verifiziert</small></div></article>
+ <article class="kpi-card green"><span class="kpi-icon">▱</span><div><span class="kpi-label">Schreibtische</span><b class="kpi-value">@Count(PlaceType.Desk)</b><small class="kpi-context">Microsoft Graph Places</small></div></article>
 </section>
 <div class="dashboard-grid">
- <section class="surface"><h2>Standorthierarchie</h2>@foreach(var building in places.Where(x=>x.Type==PlaceType.Building)){<div class="activity-item"><div><b>@building.DisplayName</b><small>@building.Id</small></div><StatusBadge Text="Live" /></div>}</section>
+ <section class="surface"><h2>Standorthierarchie</h2>@foreach(var building in places.Where(x=>x.Type==PlaceType.Building)){<div class="activity-item"><div><b>@building.DisplayName</b><small>@building.Id</small></div><StatusBadge Text="@source" /></div>}</section>
  <section class="surface"><h2>Kapazitätsübersicht</h2>@foreach(var workspace in places.Where(x=>x.Type==PlaceType.Workspace).Take(8)){<div class="activity-item"><div><b>@workspace.DisplayName</b><small>@(workspace.EmailAddress ?? "Keine Mailboxmetadaten")</small></div><b>@(workspace.Capacity?.ToString() ?? "–")</b></div>}</section>
  <section class="surface"><h2>Verfügbarkeit</h2><p>Free/Busy wird auf der Seite Parkplätze beziehungsweise im Buchungskalender mit dem delegierten getSchedule-Adapter gelesen.</p><a class="button secondary" href="parkplaetze">Verfügbarkeit öffnen</a></section>
- <section class="surface"><h2>Integrationsstatus</h2><div class="activity-item"><div><b>Microsoft 365</b><small>@RuntimeState.Code</small></div><StatusBadge Text="Verbunden" /></div></section>
+ <section class="surface"><h2>Integrationsstatus</h2><div class="activity-item"><div><b>Microsoft 365</b><small>@RuntimeState.Code</small></div><StatusBadge Text="@(RuntimeState.GraphVerified ? "Verfügbar" : "Unbekannt")" /></div></section>
 </div>}
 @code {
  private bool loading=true; private string? error; private string source="Nicht verifiziert"; private DateTimeOffset readAt; private IReadOnlyList<PlaceRecord> places=[];

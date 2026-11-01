@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Identity.Web;
 using PlaceHub.Core;
 
@@ -14,13 +15,35 @@ public sealed class CurrentActorContext
         ["PlaceHub.SystemAdministrator"] = PlaceHubRole.SystemAdministrator
     };
 
-    public CurrentActorContext(IHttpContextAccessor accessor, IConfiguration configuration, Microsoft365Options options)
+    private readonly Actor? actor;
+    private readonly string? denialCode;
+
+    // Blazor Server circuits have no HttpContext after the prerender pass; the circuit's
+    // authentication state (already completed when components are created) is the source there.
+    private static ClaimsPrincipal? ResolvePrincipal(IHttpContextAccessor accessor, AuthenticationStateProvider? provider)
     {
-        var principal = accessor.HttpContext?.User ?? throw new IntegrationAuthorizationException("AUTHENTICATED_PRINCIPAL_MISSING");
+        var fromHttp = accessor.HttpContext?.User;
+        if (fromHttp?.Identity?.IsAuthenticated == true) return fromHttp;
+        var task = provider?.GetAuthenticationStateAsync();
+        return task is { IsCompletedSuccessfully: true } ? task.Result.User : fromHttp;
+    }
+
+    /// <summary>Creates the context for DI; denials are deferred to <see cref="Current"/> so one unauthorized user cannot crash component construction.</summary>
+    public static CurrentActorContext CreateForRequest(IHttpContextAccessor accessor, IConfiguration configuration, Microsoft365Options options, AuthenticationStateProvider? provider)
+    {
+        try { return new CurrentActorContext(accessor, configuration, options, provider); }
+        catch (IntegrationAuthorizationException ex) { return new CurrentActorContext(ResolvePrincipal(accessor, provider) ?? new ClaimsPrincipal(new ClaimsIdentity()), ex.Code); }
+    }
+
+    private CurrentActorContext(ClaimsPrincipal principal, string denial) { Principal = principal; denialCode = denial; }
+
+    public CurrentActorContext(IHttpContextAccessor accessor, IConfiguration configuration, Microsoft365Options options, AuthenticationStateProvider? stateProvider = null)
+    {
+        var principal = ResolvePrincipal(accessor, stateProvider) ?? throw new IntegrationAuthorizationException("AUTHENTICATED_PRINCIPAL_MISSING");
         if (options.Mode == IntegrationMode.OfflineMock)
         {
             Principal = principal;
-            Current = new("synthetic-test", PlaceHubRole.OfficeManager, new HashSet<string> { "BER" });
+            actor = new("synthetic-test", PlaceHubRole.OfficeManager, new HashSet<string> { "BER" });
             IsSynthetic = true;
             return;
         }
@@ -35,11 +58,12 @@ public sealed class CurrentActorContext
         var safeLocations = new HashSet<string>(locations.Where(IsValidLocation), StringComparer.OrdinalIgnoreCase);
         if (safeLocations.Count == 0) throw new IntegrationAuthorizationException("LOCATION_ASSIGNMENT_MISSING");
         Principal = principal;
-        Current = new(subject, Roles[roleValues[0]], safeLocations);
+        actor = new(subject, Roles[roleValues[0]], safeLocations);
     }
 
     public ClaimsPrincipal Principal { get; }
-    public Actor Current { get; }
+    public string? DenialCode => denialCode;
+    public Actor Current => actor ?? throw new IntegrationAuthorizationException(denialCode ?? "AUTHENTICATION_REQUIRED");
     public bool IsSynthetic { get; }
     private static bool IsValidLocation(string value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 128 && value.All(x => char.IsLetterOrDigit(x) || x is '-' or '_' or '.');
 

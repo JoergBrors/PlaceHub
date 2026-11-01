@@ -20,7 +20,8 @@ Assert-Contains $compose 'Microsoft365__Mode: Microsoft365ReadOnly' 'COMPOSE_LIV
 Assert-Contains $compose 'Microsoft365__AllowSyntheticData: "false"' 'COMPOSE_SYNTHETIC_DATA_NOT_DISABLED'
 Assert-Contains $compose 'Microsoft365__CredentialProvider: Certificate' 'COMPOSE_ENTRA_CERTIFICATE_PROVIDER_MISSING'
 Assert-Contains $compose 'Microsoft365__ClientCertificatePath: /run/placehub-tls/client-auth.pfx' 'COMPOSE_ENTRA_CERTIFICATE_PATH_MISSING'
-Assert-Contains $compose 'PlaceHub__LocationAssignments__${PLACEHUB_USER_OBJECT_ID:-UNASSIGNED}__0: ${PLACEHUB_LOCATION_PLACE_ID:-UNASSIGNED}' 'COMPOSE_LOCATION_ASSIGNMENT_FAIL_CLOSED_MAPPING_MISSING'
+Assert-Contains $compose 'PlaceHub__LocationAssignmentList: ${PLACEHUB_USER_OBJECT_ID:-UNASSIGNED}=${PLACEHUB_LOCATION_PLACE_ID:-UNASSIGNED}' 'COMPOSE_LOCATION_ASSIGNMENT_FAIL_CLOSED_MAPPING_MISSING'
+if ($compose -match 'PlaceHub__LocationAssignments__\$\{') { throw 'COMPOSE_INTERPOLATES_VARIABLE_NAME' }
 foreach ($untrustedFlag in @('Microsoft365__PermissionsApproved','Microsoft365__ConsentVerified','Microsoft365__TenantCapabilityVerified')) { if ($compose.Contains($untrustedFlag)) { throw 'COMPOSE_UNVERIFIED_LIVE_FLAG_PRESENT' } }
 Assert-Contains $compose 'source: ${PLACEHUB_TLS_DIRECTORY:?PLACEHUB_TLS_DIRECTORY required}' 'COMPOSE_TLS_DIRECTORY_NOT_REQUIRED'
 Assert-Contains $compose 'read_only: true' 'COMPOSE_READ_ONLY_BOUNDARY_MISSING'
@@ -52,4 +53,16 @@ if ($keyVault.properties.publicNetworkAccess -ne 'Enabled') { throw 'KEY_VAULT_P
 if ($keyVault.properties.networkAclsDefaultAction -ne 'Deny') { throw 'KEY_VAULT_FIREWALL_DEFAULT_DENY_MISSING' }
 if ($keyVault.properties.approvedWorkerIpv4Cidr -ne 'parameter:worker_egress_ipv4_cidr') { throw 'KEY_VAULT_WORKER_EGRESS_ALLOWLIST_MISSING' }
 
-Write-Output 'DOCKER_COMPOSE_STATIC_OK'
+Write-Output if (Get-Command docker -ErrorAction SilentlyContinue) {
+    # Compose resolves values only, never variable names: check the resolved configuration with synthetic identifiers.
+    $env:PLACEHUB_TLS_DIRECTORY = $root; $env:PLACEHUB_USER_OBJECT_ID = '11111111-1111-1111-1111-111111111111'; $env:PLACEHUB_LOCATION_PLACE_ID = 'synthetic-building'
+    try {
+        $resolved = (& docker compose -f (Join-Path $root 'compose.yaml') config 2>$null) -join "`n"
+        if ($LASTEXITCODE -eq 0) {
+            if ($resolved -notmatch 'PlaceHub__LocationAssignmentList: 11111111-1111-1111-1111-111111111111=synthetic-building') { throw 'COMPOSE_LOCATION_ASSIGNMENT_NOT_RESOLVED' }
+            if ($resolved -match '\$\{') { throw 'COMPOSE_UNRESOLVED_PLACEHOLDER' }
+        }
+    }
+    finally { Remove-Item Env:PLACEHUB_TLS_DIRECTORY, Env:PLACEHUB_USER_OBJECT_ID, Env:PLACEHUB_LOCATION_PLACE_ID -ErrorAction SilentlyContinue }
+}
+'DOCKER_COMPOSE_STATIC_OK'

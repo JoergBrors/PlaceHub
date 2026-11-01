@@ -65,6 +65,22 @@ public sealed class Microsoft365AuthenticationTests
         Assert.Equal("APPLICATION_ROLE_MISSING", Assert.Throws<IntegrationAuthorizationException>(() => Create([Claim("tid",Tenant),Claim("oid",Subject),Claim(System.Security.Claims.ClaimTypes.Role,"Some.Other.Role")], new())).Code);
     }
 
+    [Fact]
+    public void LocationAssignmentListIsMatchedBySubjectOnly()
+    {
+        var list = $"{Subject}=building-1,building-2;99999999-9999-9999-9999-999999999999=other";
+        var actor = Create([Claim("tid",Tenant),Claim("oid",Subject),Claim("roles","PlaceHub.OfficeManager")], new() { ["PlaceHub:LocationAssignmentList"]=list });
+        Assert.Equal(["building-1","building-2"], actor.Current.LocationIds.OrderBy(x=>x).ToArray());
+        Assert.DoesNotContain("other", actor.Current.LocationIds);
+    }
+
+    [Theory]
+    [InlineData("UNASSIGNED=UNASSIGNED")]
+    [InlineData("")]
+    [InlineData("malformed")]
+    public void UnmatchedOrMalformedAssignmentListGrantsNoLocation(string list) =>
+        Assert.Equal("LOCATION_ASSIGNMENT_MISSING", Assert.Throws<IntegrationAuthorizationException>(() => Create([Claim("tid",Tenant),Claim("oid",Subject),Claim("roles","PlaceHub.OfficeManager")], new() { ["PlaceHub:LocationAssignmentList"]=list })).Code);
+
     private static CurrentActorContext Create((string Type,string Value)[] claims, Dictionary<string,string?> values)
     {
         var identity = new ClaimsIdentity(claims.Select(x=>new Claim(x.Type,x.Value)), "test", "name", "roles");

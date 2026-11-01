@@ -70,7 +70,7 @@ public sealed class CurrentActorContext
         var subject = EntraClaims.Subject(principal) ?? throw new IntegrationAuthorizationException("SUBJECT_ID_MISSING");
         var roleValues = EntraClaims.Roles(principal).Where(Roles.ContainsKey).ToArray();
         if (roleValues.Length != 1) throw new IntegrationAuthorizationException(roleValues.Length == 0 ? "APPLICATION_ROLE_MISSING" : "APPLICATION_ROLE_AMBIGUOUS");
-        var locations = configuration.GetSection($"PlaceHub:LocationAssignments:{subject}").Get<string[]>() ?? [];
+        var locations = (configuration.GetSection($"PlaceHub:LocationAssignments:{subject}").Get<string[]>() ?? []).Concat(ParseAssignmentList(configuration["PlaceHub:LocationAssignmentList"], subject)).ToArray();
         var safeLocations = new HashSet<string>(locations.Where(IsValidLocation), StringComparer.OrdinalIgnoreCase);
         if (safeLocations.Count == 0) throw new IntegrationAuthorizationException("LOCATION_ASSIGNMENT_MISSING");
         Principal = principal;
@@ -81,6 +81,18 @@ public sealed class CurrentActorContext
     public string? DenialCode => denialCode;
     public Actor Current => actor ?? throw new IntegrationAuthorizationException(denialCode ?? "AUTHENTICATION_REQUIRED");
     public bool IsSynthetic { get; }
+    /// <summary>Parses "oid=placeA,placeB;oid2=placeC". Compose cannot build variable names from values, so the owner-controlled assignment travels as a value.</summary>
+    internal static IEnumerable<string> ParseAssignmentList(string? list, string subject)
+    {
+        if (string.IsNullOrWhiteSpace(list)) yield break;
+        foreach (var entry in list.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var parts = entry.Split('=', 2, StringSplitOptions.TrimEntries);
+            if (parts.Length != 2 || !string.Equals(parts[0], subject, StringComparison.OrdinalIgnoreCase)) continue;
+            foreach (var id in parts[1].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)) yield return id;
+        }
+    }
+
     private static bool IsValidLocation(string value) => !string.IsNullOrWhiteSpace(value) && value.Length <= 128 && value.All(x => char.IsLetterOrDigit(x) || x is '-' or '_' or '.');
 
     public ReadAuthorizationContext CreateReadContext(Microsoft365Options options, IEnumerable<string>? mailboxes = null) =>

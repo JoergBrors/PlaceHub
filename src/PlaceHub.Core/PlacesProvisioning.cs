@@ -32,7 +32,7 @@ public sealed record PlacesWriteSpec(
 
     public void Validate(OperationKind operation)
     {
-        if (!Enum.IsDefined(Kind)) throw new ValidationException("PLACE_KIND_NOT_ALLOWED");
+        if (Kind is not (PlaceType.Building or PlaceType.Floor or PlaceType.Section or PlaceType.Workspace or PlaceType.Desk)) throw new ValidationException("PLACE_KIND_NOT_ALLOWED");
         if (operation is not (OperationKind.Create or OperationKind.Update)) throw new ValidationException("PLACES_OPERATION_NOT_ALLOWED");
         if (!IsSafeText(DisplayName ?? "", 128)) throw new ValidationException("PLACE_DISPLAY_NAME_INVALID");
         if (Tags is { Count: > 10 } || (Tags ?? []).Any(t => !IsSafeText(t, 64))) throw new ValidationException("PLACE_TAGS_INVALID");
@@ -211,7 +211,7 @@ public sealed class GraphPlacesWriteClient(HttpClient http, IWorkerTokenProvider
     private static PlaceType TypeOf(JsonElement e)
     {
         var odata = e.TryGetProperty("@odata.type", out var t) ? t.GetString() ?? "" : "";
-        foreach (var kind in Enum.GetValues<PlaceType>()) if (odata.EndsWith(PlacesWriteSpec.ODataType(kind), StringComparison.OrdinalIgnoreCase)) return kind;
+        foreach (var kind in new[] { PlaceType.Building, PlaceType.Floor, PlaceType.Section, PlaceType.Workspace, PlaceType.Desk }) if (odata.EndsWith(PlacesWriteSpec.ODataType(kind), StringComparison.OrdinalIgnoreCase)) return kind;
         throw new IntegrationException("PLACE_TYPE_UNSUPPORTED");
     }
 

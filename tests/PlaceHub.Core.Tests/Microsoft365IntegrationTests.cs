@@ -53,6 +53,45 @@ public sealed class Microsoft365IntegrationTests
         Assert.Equal(DateTimeOffset.Parse("2026-10-01T08:00:00Z"),snapshot.Places[0].SourceUpdatedAt);
     }
 
+    private static string PlaceJson(string odata,string id,string? parent,string name,string? placeId=null,string? email=null)=>"{\"@odata.type\":\"#microsoft.graph."+odata+"\",\"id\":\""+id+"\",\"placeId\":\""+(placeId??id)+"\""+(parent is null?"":",\"parentId\":\""+parent+"\"")+",\"displayName\":\""+name+"\""+(email is null?"":",\"emailAddress\":\""+email+"\"")+"}";
+
+    [Fact] public async Task GraphPlacesResolvesAssignedBuildingAndAncestorsByIdWhenCollectionsLag()
+    {
+        var gets=new List<string>();
+        var handler=new StubHandler(request=>{var path=request.RequestUri!.AbsolutePath;
+            if(path.EndsWith("microsoft.graph.room"))return Json("{\"value\":["+PlaceJson("room","room-id","sec-1","Home","room-place","home@example.invalid")+","+PlaceJson("room","other-room","other-sec","Elsewhere")+"]}");
+            if(path.Contains("/microsoft.graph."))return Json("{\"value\":[]}");
+            var id=path[(path.LastIndexOf('/')+1)..];gets.Add(id);
+            return id switch{"b-place"=>Json(PlaceJson("building","b-id",null,"HomeOffice","b-place")),"sec-1"=>Json(PlaceJson("section","sec-1","floor-1","Links")),"floor-1"=>Json(PlaceJson("floor","floor-1","b-id","1")),"other-sec"=>Json(PlaceJson("section","other-sec","other-floor","X")),"other-floor"=>Json(PlaceJson("floor","other-floor","other-b","Y")),"other-b"=>Json(PlaceJson("building","other-b",null,"Secret")),_=>new(HttpStatusCode.NotFound)};});
+        var snapshot=await new GraphPlacesReader(Client(handler),new FixedTokenProvider(),LiveOptions).ReadHierarchyAsync(LiveAuth(locations:new HashSet<string>{"b-place"}),default);
+        Assert.Equal(["Building:HomeOffice","Floor:1","Section:Links","Room:Home"],snapshot.Places.OrderBy(x=>x.Type).Select(x=>$"{x.Type}:{x.DisplayName}").ToArray());
+        Assert.DoesNotContain(snapshot.Places,x=>x.DisplayName is "Elsewhere" or "Secret" or "X" or "Y");
+        Assert.Equal(2,snapshot.ListCounts!["Room"]);Assert.False(snapshot.ListCounts.ContainsKey("Building"));
+        Assert.True(snapshot.DirectLookups>=3);
+        Assert.Equal("home@example.invalid",snapshot.Places.Single(x=>x.Type==PlaceType.Room).EmailAddress);
+    }
+
+    [Fact] public async Task GraphPlacesIgnoresAnAssignedLocationThatIsNotABuilding()
+    {
+        var handler=new StubHandler(request=>{var path=request.RequestUri!.AbsolutePath;
+            if(path.Contains("/microsoft.graph."))return Json("{\"value\":[]}");
+            return Json(PlaceJson("room","a-room",null,"Not a building"));});
+        var snapshot=await new GraphPlacesReader(Client(handler),new FixedTokenProvider(),LiveOptions).ReadHierarchyAsync(LiveAuth(locations:new HashSet<string>{"a-room"}),default);
+        Assert.Empty(snapshot.Places);
+    }
+
+    [Fact] public async Task GraphPlacesBoundsDirectLookupsAndSkipsUnsafeIds()
+    {
+        var gets=0;
+        var rooms=string.Join(",",Enumerable.Range(0,200).Select(i=>PlaceJson("room","r"+i,"p"+i,"Room"+i)))+","+PlaceJson("room","bad","../users","Bad");
+        var handler=new StubHandler(request=>{var path=request.RequestUri!.AbsolutePath;
+            if(path.EndsWith("microsoft.graph.room"))return Json("{\"value\":["+rooms+"]}");
+            if(path.Contains("/microsoft.graph."))return Json("{\"value\":[]}");
+            gets++;return new(HttpStatusCode.NotFound);});
+        await new GraphPlacesReader(Client(handler),new FixedTokenProvider(),LiveOptions).ReadHierarchyAsync(LiveAuth(),default);
+        Assert.True(gets<=40);
+    }
+
     [Fact] public async Task GraphPlacesTranslatesForbidden()
     { var reader=new GraphPlacesReader(Client(new StubHandler(_=>new(HttpStatusCode.Forbidden))),new FixedTokenProvider(),LiveOptions);var ex=await Assert.ThrowsAsync<IntegrationException>(()=>reader.ReadHierarchyAsync(LiveAuth(),default));Assert.Equal("GRAPH_PERMISSION_DENIED",ex.Code); }
 

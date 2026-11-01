@@ -37,11 +37,14 @@ if (microsoft365.Mode == IntegrationMode.Microsoft365ReadOnly)
         .AddInMemoryTokenCaches();
     builder.Services.AddAuthorization(options =>
     {
-        options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        // One policy for the fallback and for the Razor endpoints (RequireAuthorization() alone would only demand a signed-in user).
+        var placeHubUser = new AuthorizationPolicyBuilder()
             .RequireAuthenticatedUser()
-            .RequireClaim("tid", microsoft365.TenantId)
-            .RequireRole("PlaceHub.OfficeManager", "PlaceHub.LocationManager", "PlaceHub.SystemAdministrator")
+            .RequireAssertion(context => string.Equals(EntraClaims.Tenant(context.User), microsoft365.TenantId, StringComparison.OrdinalIgnoreCase)
+                && EntraClaims.Roles(context.User).Count(r => r is "PlaceHub.OfficeManager" or "PlaceHub.LocationManager" or "PlaceHub.SystemAdministrator") == 1)
             .Build();
+        options.AddPolicy("PlaceHubUser", placeHubUser);
+        options.FallbackPolicy = placeHubUser;
     });
     builder.Services.Configure<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme, options =>
     {
@@ -64,6 +67,7 @@ if (microsoft365.Mode == IntegrationMode.Microsoft365ReadOnly)
         options.TokenValidationParameters.ValidAudience = microsoft365.ClientId;
         options.TokenValidationParameters.NameClaimType = "name";
         options.TokenValidationParameters.RoleClaimType = "roles";
+        options.MapInboundClaims = false;
     });
     builder.Services.AddScoped<IDelegatedTokenProvider, MicrosoftIdentityDelegatedTokenProvider>();
 }
@@ -95,7 +99,7 @@ app.UseAuthorization();
 app.UseAntiforgery();
 app.MapStaticAssets();
 var components = app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
-if (microsoft365.Mode == IntegrationMode.Microsoft365ReadOnly) components.RequireAuthorization();
+if (microsoft365.Mode == IntegrationMode.Microsoft365ReadOnly) components.RequireAuthorization("PlaceHubUser");
 if (microsoft365.Mode == IntegrationMode.Microsoft365ReadOnly)
 {
     app.MapGet("/auth/signin", async context => await context.ChallengeAsync(OpenIdConnectDefaults.AuthenticationScheme, new AuthenticationProperties { RedirectUri = "/" })).AllowAnonymous();

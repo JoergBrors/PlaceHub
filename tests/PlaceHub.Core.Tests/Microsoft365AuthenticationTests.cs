@@ -44,6 +44,27 @@ public sealed class Microsoft365AuthenticationTests
         Assert.Equal("APPLICATION_ROLE_MISSING", Assert.Throws<IntegrationAuthorizationException>(() => actor.Current).Code);
     }
 
+    [Fact]
+    public void MappedLongSchemaClaimNamesAreAccepted()
+    {
+        var actor = Create([Claim(EntraClaims.TenantUri,Tenant),Claim(EntraClaims.ObjectIdUri,Subject),Claim(System.Security.Claims.ClaimTypes.Role,"PlaceHub.SystemAdministrator")], new() { [$"PlaceHub:LocationAssignments:{Subject}:0"]="building-1" });
+        Assert.Equal(PlaceHubRole.SystemAdministrator, actor.Current.Role);
+        Assert.Equal(Subject, actor.Current.Id);
+    }
+
+    [Fact]
+    public void MissingTenantClaimIsReportedDistinctlyFromAMismatch()
+    {
+        Assert.Equal("TENANT_CLAIM_MISSING", Assert.Throws<IntegrationAuthorizationException>(() => Create([Claim("oid",Subject),Claim("roles","PlaceHub.OfficeManager")], new())).Code);
+        Assert.Equal("TENANT_MISMATCH", Assert.Throws<IntegrationAuthorizationException>(() => Create([Claim(EntraClaims.TenantUri,Guid.NewGuid().ToString()),Claim("oid",Subject),Claim("roles","PlaceHub.OfficeManager")], new())).Code);
+    }
+
+    [Fact]
+    public void ARoleOnlyCountsWhenItIsOneOfThePlaceHubRoles()
+    {
+        Assert.Equal("APPLICATION_ROLE_MISSING", Assert.Throws<IntegrationAuthorizationException>(() => Create([Claim("tid",Tenant),Claim("oid",Subject),Claim(System.Security.Claims.ClaimTypes.Role,"Some.Other.Role")], new())).Code);
+    }
+
     private static CurrentActorContext Create((string Type,string Value)[] claims, Dictionary<string,string?> values)
     {
         var identity = new ClaimsIdentity(claims.Select(x=>new Claim(x.Type,x.Value)), "test", "name", "roles");

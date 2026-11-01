@@ -1,8 +1,8 @@
 @inject CurrentActorContext ActorContext
-<nav aria-label="Hauptnavigation">
+<nav aria-label="@(L["nav.main"])">
 @foreach (var group in VisibleItems.GroupBy(x => x.Group)) {
-  <span class="nav-group">@group.Key</span>
-  @foreach (var item in group) { <NavLink href="@item.Url" Match="@(item.Url == "" ? NavLinkMatch.All : NavLinkMatch.Prefix)"><span aria-hidden="true">@item.Icon</span>@item.Label</NavLink> }
+  <span class="nav-group">@L.Src(group.Key)</span>
+  @foreach (var item in group) { <NavLink href="@item.Url" Match="@(item.Url == "" ? NavLinkMatch.All : NavLinkMatch.Prefix)"><span aria-hidden="true">@item.Icon</span>@L.Src(item.Label)</NavLink> }
 }
 </nav>
 @code {

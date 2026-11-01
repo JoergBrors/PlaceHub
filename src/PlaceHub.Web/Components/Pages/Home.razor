@@ -8,58 +8,58 @@
 @inject AdministrationService Administration
 @rendermode InteractiveServer
 <PageTitle>Dashboard · PlaceHub</PageTitle>
-<div class="page-heading"><div class="page-title"><span class="page-icon" aria-hidden="true">▦</span><div><h1>PlaceHub Betriebsübersicht</h1><p>Gesamtansicht über Arbeitsplätze, Buchungen, Besucher und Parkressourcen der zugewiesenen Standorte.</p></div></div>
- <label class="date-picker"><span class="sr-only">Datum</span><input type="date" aria-label="Datum" @bind="day" @bind:after="OnDayChanged" /></label></div>
-@if(error is not null){<div class="notice" role="alert"><strong>Microsoft 365 nicht verfügbar</strong>@error. Es werden keine Mock-Daten als Live-Daten angezeigt.</div>}
-else if(loading){<div class="notice" role="status"><strong>Microsoft Graph wird gelesen</strong>Die Anmeldung und effektiven Berechtigungen werden geprüft.</div>}
+<div class="page-heading"><div class="page-title"><span class="page-icon" aria-hidden="true">▦</span><div><h1>@L["h.title"]</h1><p>@L["h.sub"]</p></div></div>
+ <label class="date-picker"><span class="sr-only">@L["h.date"]</span><input type="date" aria-label="@L["h.date"]" @bind="day" @bind:after="OnDayChanged" /></label></div>
+@if(error is not null){<div class="notice" role="alert"><strong>@L["common.m365unavailable"]</strong>@error. @L["common.nomock"]</div>}
+else if(loading){<div class="notice" role="status"><strong>@L["common.graphreading"]</strong>@L["h.checking"]</div>}
 else{
-<p class="source-line"><b>Datenquelle: @source</b> · Abrufzeit @readAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss") · Listen vor Standortfilter: @CountsText · Direktabfragen: @lookups</p>
-<section class="stat-grid" aria-label="Kennzahlen">
- <article class="stat-tile"><span class="stat-icon">▥</span><div><span class="stat-label">Gebäude</span><b class="stat-value">@Count(PlaceType.Building)</b><small>Microsoft Graph Places</small></div></article>
- <article class="stat-tile"><span class="stat-icon">≡</span><div><span class="stat-label">Etagen</span><b class="stat-value">@Count(PlaceType.Floor)</b><small>Autorisierte Hierarchie</small></div></article>
- <article class="stat-tile"><span class="stat-icon">♧</span><div><span class="stat-label">Bereiche</span><b class="stat-value">@Count(PlaceType.Section)</b><small>Sections</small></div></article>
- <article class="stat-tile"><span class="stat-icon">▦</span><div><span class="stat-label">Workspaces</span><b class="stat-value">@Count(PlaceType.Workspace)</b><small>Microsoft Graph Places</small></div></article>
- <article class="stat-tile"><span class="stat-icon">▱</span><div><span class="stat-label">Schreibtische</span><b class="stat-value">@Count(PlaceType.Desk)</b><small>Microsoft Graph Places</small></div></article>
- <article class="stat-tile"><span class="stat-icon">P</span><div><span class="stat-label">Parkplätze</span><b class="stat-value">@spaces.Count</b><small>PlaceHub-Metadaten</small></div></article>
- <article class="stat-tile"><span class="stat-icon">♙</span><div><span class="stat-label">Besucher heute</span><b class="stat-value">–</b><small>Modul nicht angebunden</small></div></article>
- <article class="stat-tile"><span class="stat-icon">◷</span><div><span class="stat-label">Aktive Reservierungen</span><b class="stat-value">@reservations.Count(x=>x.State is ReservationState.Pending or ReservationState.Accepted)</b><small>Angefragt oder bestätigt</small></div></article>
+<p class="source-line">@(L.F("h.sourceline", source.Length==0?L["common.unverified"]:source, readAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss"), CountsText, lookups))</p>
+<section class="stat-grid" aria-label="@L["h.kpis"]">
+ <article class="stat-tile"><span class="stat-icon">▥</span><div><span class="stat-label">@L["h.st.buildings"]</span><b class="stat-value">@Count(PlaceType.Building)</b><small>@L["h.ctx.graph"]</small></div></article>
+ <article class="stat-tile"><span class="stat-icon">≡</span><div><span class="stat-label">@L["h.st.floors"]</span><b class="stat-value">@Count(PlaceType.Floor)</b><small>@L["h.ctx.hierarchy"]</small></div></article>
+ <article class="stat-tile"><span class="stat-icon">♧</span><div><span class="stat-label">@L["h.st.sections"]</span><b class="stat-value">@Count(PlaceType.Section)</b><small>@L["h.ctx.sections"]</small></div></article>
+ <article class="stat-tile"><span class="stat-icon">▦</span><div><span class="stat-label">@L["h.st.workspaces"]</span><b class="stat-value">@Count(PlaceType.Workspace)</b><small>@L["h.ctx.graph"]</small></div></article>
+ <article class="stat-tile"><span class="stat-icon">▱</span><div><span class="stat-label">@L["h.st.desks"]</span><b class="stat-value">@Count(PlaceType.Desk)</b><small>@L["h.ctx.graph"]</small></div></article>
+ <article class="stat-tile"><span class="stat-icon">P</span><div><span class="stat-label">@L["h.st.parking"]</span><b class="stat-value">@spaces.Count</b><small>@L["h.ctx.metadata"]</small></div></article>
+ <article class="stat-tile"><span class="stat-icon">♙</span><div><span class="stat-label">@L["h.st.visitors"]</span><b class="stat-value">–</b><small>@L["h.ctx.nomodule"]</small></div></article>
+ <article class="stat-tile"><span class="stat-icon">◷</span><div><span class="stat-label">@L["h.st.reservations"]</span><b class="stat-value">@reservations.Count(x=>x.State is ReservationState.Pending or ReservationState.Accepted)</b><small>@L["h.ctx.requested"]</small></div></article>
 </section>
 <div class="dash-row two">
- <section class="panel-card"><header class="panel-head"><span class="panel-icon">⌬</span><div><h2>Standorthierarchie</h2><p>Gebäude, Etagen und Bereiche der zugewiesenen Standorte.</p></div><a class="button secondary" href="places-verwaltung">Verwalten</a></header>
-  @if(!Buildings.Any()){<p class="empty-line">Keine Gebäude im autorisierten Bereich gelesen.</p>}
+ <section class="panel-card"><header class="panel-head"><span class="panel-icon">⌬</span><div><h2>@L["h.hier.title"]</h2><p>@L["h.hier.sub"]</p></div><a class="button secondary" href="places-verwaltung">@L["common.manage"]</a></header>
+  @if(!Buildings.Any()){<p class="empty-line">@L["h.hier.empty"]</p>}
   <ul class="tree">@foreach(var building in Buildings){@Node(building,0)}</ul></section>
- <section class="panel-card"><header class="panel-head"><span class="panel-icon">▦</span><div><h2>Buchungskalender / Verfügbarkeit</h2><p>Reservierungen für den gewählten Tag.</p></div><a class="button secondary" href="buchungskalender">Kalender öffnen</a></header>
-  @if(!DayReservations.Any()){<p class="empty-line">Keine Reservierungen am @day.ToString("dd.MM.yyyy"). Verfügbarkeit (Free/Busy) steht im Buchungskalender.</p>}
-  else{<table class="mini"><thead><tr><th>Ressource</th><th>Postfach</th><th>Datum &amp; Zeit</th><th>Status</th></tr></thead><tbody>
+ <section class="panel-card"><header class="panel-head"><span class="panel-icon">▦</span><div><h2>@L["h.cal.title"]</h2><p>@L["h.cal.sub"]</p></div><a class="button secondary" href="buchungskalender">@L["h.cal.open"]</a></header>
+  @if(!DayReservations.Any()){<p class="empty-line">@L.F("h.cal.empty", day.ToString("dd.MM.yyyy"))</p>}
+  else{<table class="mini"><thead><tr><th>@L["th.resource"]</th><th>@L["th.mailbox"]</th><th>@L["h.th.datetime"]</th><th>@L["th.status"]</th></tr></thead><tbody>
   @foreach(var r in DayReservations){<tr><td><b>@SpaceName(r.SpaceId)</b></td><td>@r.MailboxAddress</td><td>@r.Start.ToString("dd.MM.yyyy HH:mm") – @r.End.ToString("HH:mm")</td><td><StatusBadge Text="@Label(r.State)" /></td></tr>}</tbody></table>}</section>
 </div>
 <div class="dash-row two">
- <section class="panel-card"><header class="panel-head"><span class="panel-icon">♧</span><div><h2>Workspaces</h2><p>Workspaces mit Hierarchie, Kapazität und Status aus Places.</p></div><a class="button secondary" href="schreibtischgruppen">Schreibtischgruppen</a></header>
-  @if(!Workspaces.Any()){<p class="empty-line">Keine Workspaces gelesen. Es werden keine synthetischen Einträge angezeigt.</p>}
-  else{<table class="mini"><thead><tr><th>Name</th><th>Hierarchie</th><th>Kapazität</th><th>Status</th></tr></thead><tbody>
+ <section class="panel-card"><header class="panel-head"><span class="panel-icon">♧</span><div><h2>@L["h.st.workspaces"]</h2><p>@L["h.ws.sub"]</p></div><a class="button secondary" href="schreibtischgruppen">@L.Src("Schreibtischgruppen")</a></header>
+  @if(!Workspaces.Any()){<p class="empty-line">@L["h.ws.empty"]</p>}
+  else{<table class="mini"><thead><tr><th>@L["th.name"]</th><th>@L["th.hierarchy"]</th><th>@L["th.capacity"]</th><th>@L["th.status"]</th></tr></thead><tbody>
   @foreach(var w in Workspaces){<tr><td><b>@w.DisplayName</b></td><td>@ParentName(w)</td><td>@(w.Capacity?.ToString() ?? "–")</td><td><StatusBadge Text="@(w.OperationalState ?? "Unbekannt")" /></td></tr>}</tbody></table>}</section>
- <section class="panel-card"><header class="panel-head"><span class="panel-icon">P</span><div><h2>Parkplatzverwaltung</h2><p>Parkressourcen, Merkmale, Postfach und Provisionierung.</p></div><a class="button secondary" href="parkplatz-verwaltung">+ Parkressource registrieren</a></header>
-  @if(!spaces.Any()){<p class="empty-line">Noch keine Parkplätze registriert.</p>}
-  else{<table class="mini"><thead><tr><th>Name</th><th>Standort</th><th>Kategorie</th><th>Merkmale</th><th>Postfach</th><th>Provisionierung</th></tr></thead><tbody>
-  @foreach(var s in spaces.Take(6)){<tr><td><b>@s.DisplayName</b></td><td>@s.LocationId</td><td>@s.Category</td><td>@if(s.EvCharging){<span class="feature">EV</span>}@if(s.Accessible){<span class="feature">Barrierefrei</span>}</td><td>@s.MailboxAddress</td><td><StatusBadge Text="@ParkingLabel(s.Status)" /></td></tr>}</tbody></table>}</section>
+ <section class="panel-card"><header class="panel-head"><span class="panel-icon">P</span><div><h2>@L["h.park.title"]</h2><p>@L["h.park.sub"]</p></div><a class="button secondary" href="parkplatz-verwaltung">@L["h.park.register"]</a></header>
+  @if(!spaces.Any()){<p class="empty-line">@L["h.park.empty"]</p>}
+  else{<table class="mini"><thead><tr><th>@L["th.name"]</th><th>@L["th.location"]</th><th>@L["th.category"]</th><th>@L["th.features"]</th><th>@L["th.mailbox"]</th><th>@L["th.provisioning"]</th></tr></thead><tbody>
+  @foreach(var s in spaces.Take(6)){<tr><td><b>@s.DisplayName</b></td><td>@s.LocationId</td><td>@L.Src(CategoryName(s.Category))</td><td>@if(s.EvCharging){<span class="feature">EV</span>}@if(s.Accessible){<span class="feature">@L.Src("Barrierefrei")</span>}</td><td>@s.MailboxAddress</td><td><StatusBadge Text="@ParkingLabel(s.Status)" /></td></tr>}</tbody></table>}</section>
 </div>
 <div class="dash-row three">
- <section class="panel-card"><header class="panel-head"><span class="panel-icon">♙</span><div><h2>Besucher heute</h2><p>Erwartete Besucher an allen Standorten.</p></div><a class="button secondary" href="besucher">Alle</a></header>
-  <p class="empty-line">Das Besuchermodul ist nicht angebunden. Es werden keine Beispieldaten angezeigt.</p></section>
- <section class="panel-card"><header class="panel-head"><span class="panel-icon">◇</span><div><h2>Integrationsstatus</h2><p>Konnektivität, Worker und Synchronisierung mit Microsoft 365.</p></div><a class="button secondary" href="diagnose">Details</a></header>
+ <section class="panel-card"><header class="panel-head"><span class="panel-icon">♙</span><div><h2>@L["h.st.visitors"]</h2><p>@L["h.vis.sub"]</p></div><a class="button secondary" href="besucher">@L["common.all"]</a></header>
+  <p class="empty-line">@L["h.vis.empty"]</p></section>
+ <section class="panel-card"><header class="panel-head"><span class="panel-icon">◇</span><div><h2>@L["h.int.title"]</h2><p>@L["h.int.sub"]</p></div><a class="button secondary" href="diagnose">@L["common.details"]</a></header>
   <ul class="status-list">
    <li><span class="st-icon">▣</span><div><b>Microsoft 365 Graph</b><small>@RuntimeState.Code</small></div><StatusBadge Text="@(RuntimeState.GraphVerified ? "Verfügbar" : "Unbekannt")" /></li>
-   <li><span class="st-icon">✉</span><div><b>Exchange-Worker</b><small>Ressourcenpostfächer (Räume, Parkplätze)</small></div><StatusBadge Text="Ausführung gesperrt" /></li>
-   <li><span class="st-icon">☰</span><div><b>Provisionierungswarteschlange</b><small>Offene Vorgänge</small></div><span class="badge pending">@OpenRequests.Count() Einträge</span></li>
-   <li><span class="st-icon">↻</span><div><b>Letzte Synchronisierung</b><small>Letzter erfolgreicher Graph-Lesezugriff</small></div><span class="badge pending">@readAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</span></li>
+   <li><span class="st-icon">✉</span><div><b>@L["h.int.exworker"]</b><small>@L["h.int.exworker.sub"]</small></div><StatusBadge Text="Ausführung gesperrt" /></li>
+   <li><span class="st-icon">☰</span><div><b>@L["h.int.queue"]</b><small>@L["h.int.queue.sub"]</small></div><span class="badge pending">@L.F("h.int.entries", OpenRequests.Count())</span></li>
+   <li><span class="st-icon">↻</span><div><b>@L["h.int.sync"]</b><small>@L["h.int.sync.sub"]</small></div><span class="badge pending">@readAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</span></li>
   </ul></section>
- <section class="panel-card"><header class="panel-head"><span class="panel-icon">✓</span><div><h2>Aufgaben / Provisionierungsaufträge</h2><p>Offene Freigaben und operative Aufgaben.</p></div><a class="button secondary" href="provisionierung">Alle</a></header>
-  @if(!OpenRequests.Any()){<p class="empty-line">Keine offenen Aufträge.</p>}
-  else{<table class="mini"><thead><tr><th>Auftrag</th><th>Erstellt</th><th>Status</th></tr></thead><tbody>
+ <section class="panel-card"><header class="panel-head"><span class="panel-icon">✓</span><div><h2>@L["h.task.title"]</h2><p>@L["h.task.sub"]</p></div><a class="button secondary" href="provisionierung">@L["common.all"]</a></header>
+  @if(!OpenRequests.Any()){<p class="empty-line">@L["h.task.empty"]</p>}
+  else{<table class="mini"><thead><tr><th>@L["th.order"]</th><th>@L["h.th.created"]</th><th>@L["th.status"]</th></tr></thead><tbody>
   @foreach(var r in OpenRequests.Take(5)){<tr><td><b>@r.Specification.Name</b><small>@r.Specification.Operation</small></td><td>@(r.Audit.FirstOrDefault()?.At.ToLocalTime().ToString("dd.MM. HH:mm") ?? "–")</td><td><StatusBadge Text="@RequestLabel(r.State)" /></td></tr>}</tbody></table>}</section>
 </div>}
 @code {
- private bool loading=true; private string? error; private string source="Nicht verifiziert"; private DateTimeOffset readAt; private IReadOnlyList<PlaceRecord> places=[]; private IReadOnlyDictionary<string,int>? listCounts; private int lookups;
+ private bool loading=true; private string? error; private string source=""; private DateTimeOffset readAt; private IReadOnlyList<PlaceRecord> places=[]; private IReadOnlyDictionary<string,int>? listCounts; private int lookups;
  private IReadOnlyList<ParkingSpace> spaces=[]; private IReadOnlyList<ParkingReservation> reservations=[]; private IReadOnlyList<AdministrationRequest> requests=[]; private DateTime day=DateTime.Today;
  private string CountsText=>listCounts is null?"–":string.Join(" · ",listCounts.Select(x=>$"{x.Key} {x.Value}"));
  private int Count(PlaceType type)=>places.Count(x=>x.Type==type);
@@ -71,10 +71,11 @@ else{
  private string ParentName(PlaceRecord p)=>places.FirstOrDefault(x=>x.Id==p.ParentId||(x.StablePlaceId is not null&&x.StablePlaceId==p.ParentId))?.DisplayName??"–";
  private string SpaceName(Guid id)=>spaces.FirstOrDefault(x=>x.Id==id)?.DisplayName??"Unbekannt";
  private RenderFragment Node(PlaceRecord p,int depth)=>@<li><details open="@(depth<2)"><summary><b>@p.DisplayName</b> <span class="kind">@TypeLabel(p.Type)</span>@if(ChildrenOf(p).Any()){<span class="badge pending">@ChildrenOf(p).Count()</span>}</summary>@if(depth<4&&ChildrenOf(p).Any()){<ul class="tree">@foreach(var c in ChildrenOf(p)){@Node(c,depth+1)}</ul>}</details></li>;
- private static string TypeLabel(PlaceType t)=>t switch{PlaceType.Building=>"Gebäude",PlaceType.Floor=>"Etage",PlaceType.Section=>"Bereich",PlaceType.Workspace=>"Workspace",PlaceType.Desk=>"Schreibtisch",_=>"Raum"};
- private static string Label(ReservationState s)=>s switch{ReservationState.Pending=>"Angefragt",ReservationState.Accepted=>"Akzeptiert",ReservationState.Declined=>"Abgelehnt",ReservationState.Cancelled=>"Storniert",ReservationState.RequiresReconciliation=>"Abgleich erforderlich",_=>"Unbekannt"};
+ private string TypeLabel(PlaceType t)=>t switch{PlaceType.Building=>L["type.building"],PlaceType.Floor=>L["type.floor"],PlaceType.Section=>L["type.section"],PlaceType.Workspace=>L["type.workspace"],PlaceType.Desk=>L["type.desk"],_=>L["type.room"]};
+ private string Label(ReservationState s)=>s switch{ReservationState.Pending=>"Angefragt",ReservationState.Accepted=>"Akzeptiert",ReservationState.Declined=>"Abgelehnt",ReservationState.Cancelled=>"Storniert",ReservationState.RequiresReconciliation=>"Abgleich erforderlich",_=>"Unbekannt"};
  private static string ParkingLabel(ParkingStatus s)=>s switch{ParkingStatus.Active=>"Verfügbar",ParkingStatus.PendingVerification=>"Verifizierung ausstehend",ParkingStatus.Provisioning=>"Wird provisioniert",ParkingStatus.RequiresReconciliation=>"Abgleich erforderlich",ParkingStatus.Failed=>"Fehler",_=>"Gesperrt"};
  private static string RequestLabel(RequestState s)=>s switch{RequestState.AwaitingApproval=>"Freigabe ausstehend",RequestState.Approved=>"Freigegeben",RequestState.Running=>"In Bearbeitung",RequestState.PendingPropagation=>"Wartet auf Verbreitung",RequestState.RequiresReconciliation=>"Abgleich erforderlich",RequestState.Failed=>"Fehler",_=>s.ToString()};
+ private static string CategoryName(ParkingCategory c)=>c switch{ParkingCategory.Standard=>"Standard",ParkingCategory.Accessible=>"Barrierefrei",ParkingCategory.ElectricVehicle=>"Elektrofahrzeug",ParkingCategory.Visitor=>"Besucher",_=>"Reserviert"};
  private void OnDayChanged(){}
  protected override async Task OnInitializedAsync()
  {

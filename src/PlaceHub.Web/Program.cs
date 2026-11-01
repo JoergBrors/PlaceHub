@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.Identity.Web;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 
@@ -25,6 +26,7 @@ var microsoft365 = ReadMicrosoft365Options(builder.Configuration);
 Microsoft365Configuration.Validate(microsoft365);
 builder.Services.AddSingleton(microsoft365);
 builder.Services.AddSingleton<IntegrationRuntimeState>();
+builder.Services.AddSingleton<Loc>();
 builder.Services.AddSingleton<IntegrationReadinessService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddCascadingAuthenticationState();
@@ -107,6 +109,24 @@ builder.Services.AddSingleton<ParkingService>();
 builder.Services.AddScoped<ParkingReservationService>();
 var app = builder.Build();
 if (!app.Environment.IsDevelopment()) app.UseExceptionHandler("/Error", createScopeForErrors: true);
+// Languages are discovered from the embedded Localization/*.json files; cookie first, then the browser's Accept-Language.
+var languageCodes = app.Services.GetRequiredService<Loc>().Languages.Select(x => x.Code).ToArray();
+app.UseRequestLocalization(options =>
+{
+    options.SetDefaultCulture(Loc.DefaultLanguage).AddSupportedCultures(languageCodes).AddSupportedUICultures(languageCodes);
+    options.RequestCultureProviders = [new CookieRequestCultureProvider { CookieName = Loc.CookieName }, new AcceptLanguageHeaderRequestCultureProvider()];
+});
+app.MapPost("/lang", async (HttpContext context, Loc loc) =>
+{
+    var form = await context.Request.ReadFormAsync();
+    var code = form["code"].ToString();
+    var back = form["returnUrl"].ToString();
+    if (loc.Languages.Any(x => x.Code == code))
+        context.Response.Cookies.Append(Loc.CookieName, CookieRequestCultureProvider.MakeCookieValue(new RequestCulture(code)),
+            new CookieOptions { Expires = DateTimeOffset.UtcNow.AddYears(1), HttpOnly = true, IsEssential = true, SameSite = SameSiteMode.Lax, Secure = context.Request.IsHttps });
+    // Only local return targets are accepted (no open redirect).
+    return Results.LocalRedirect(back.StartsWith('/') && !back.StartsWith("//") && !back.StartsWith("/\\") ? back : "/");
+}).DisableAntiforgery().AllowAnonymous();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();

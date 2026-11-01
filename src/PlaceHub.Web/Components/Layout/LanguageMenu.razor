@@ -1,0 +1,6 @@
+@inject NavigationManager Navigation
+<details class="lang-menu"><summary aria-label="@L["lang.menu"]"><span aria-hidden="true">◍</span> @L.Lang.ToUpperInvariant()</summary>
+ <form method="post" action="/lang"><input type="hidden" name="returnUrl" value="@ReturnUrl" />
+  @foreach(var language in L.Languages){<button type="submit" name="code" value="@language.Code" lang="@language.Code" class="@(language.Code==L.Lang?"current":"")" aria-current="@(language.Code==L.Lang?"true":null)">@language.Name</button>}
+ </form></details>
+@code { private string ReturnUrl => "/" + Navigation.ToBaseRelativePath(Navigation.Uri); }

@@ -138,44 +138,55 @@ ADR-010 accepts SQLite for synthetic data only. The location mapping lives in co
 
 User/OID verified; role verified; assignment PREPARED_NOT_APPLIED; building PENDING_OWNER_SELECTION; location PREPARED_NOT_APPLIED; certificate NOT_EXECUTED; registration BLOCKED_APPROVAL; plan NOT_TESTED (PR #1 unmerged; mergeable and clean, no required checks or reviews); apply NOT_EXECUTED; consent NOT_GRANTED; login, Places, `getSchedule` NOT_TESTED.
 
-## Places write management – investigation and gates (2026-11-01)
+## Places write management – investigation and gates (2026-11-01, corrected)
 
-Status: **design and ADR amendments PROPOSED; no write permission, consent, RBAC or tenant write exists.** Declarations after the 2026-11-01 apply: frontend app has only the two delegated read scopes; provisioning app has none.
+Status: **ADR amendments PROPOSED (ADR-004/005/015); no write permission, consent, RBAC assignment, worker activation, Key Vault access or tenant write exists.** After the 2026-11-01 apply the frontend app has only the two delegated read scopes; the provisioning app has none.
 
-### Discovery so far
+### Inventory status
 
-Delegated read as the signed-in administrator returned HTTP 200 with an empty `microsoft.graph.building` collection. That proves only that buildings are absent from the Places directory for that identity; rooms, room lists, workspaces and desks, and legacy Exchange room mailboxes are **not yet inspected** and may exist. Suggested read-only inventory (administrator session):
+Delegated read as an administrator returned HTTP 200 with an empty `building` collection. That does not prove the other families are empty. **Not yet inspected:** room, roomList, floor, section, workspace, desk and Exchange room/workspace mailboxes. This inventory is a hard precondition for the first write.
 
 ```powershell
 foreach($t in 'roomList','room','floor','section','workspace','desk'){ "== $t"; Invoke-MgGraphRequest -Uri "https://graph.microsoft.com/v1.0/places/microsoft.graph.$t" | ConvertTo-Json -Depth 4 }
-# optional, Exchange side
 Connect-ExchangeOnline; Get-Mailbox -RecipientTypeDetails RoomMailbox,WorkspaceMailbox -ResultSize 50 | Select DisplayName,PrimarySmtpAddress
 ```
 
-### Write interfaces compared
+### Interfaces compared
 
-| Aspect | Graph v1.0 `POST /places` | Places PowerShell (`New-Place`, `Set-PlaceV3`) |
+| Aspect | Graph v1.0 `POST /places` | Places PowerShell |
 |---|---|---|
-| Resource types | building, floor, section, room, workspace, desk | same, plus Exchange cmdlets for rooms |
-| Permission | `Place.ReadWrite.All` (delegated or application) | Exchange Administrator, Places Administrator or `TenantPlacesManagement` role |
-| App-only | Yes, plus Exchange RBAC `TenantPlacesManagement` and `MailRecipient` | Unattended certificate use not documented – not assumed |
-| Delegated | Requires an Entra role (least: Exchange Administrator) – unsuitable for Office Managers | Interactive administrator roles |
-| Mailbox creation | Implicit for workspaces (generated `emailAddress`) | Desk modes Reservable/DropIn create a mailbox; other modes optional |
-| Verification | Response contains `id`, `placeId`, `parentId`; read back by `placeId` | `Get-PlaceV3` |
-| Complexity | One HTTPS client, already present | Module, session, Windows/CBA constraints |
+| Types | building, floor, section, room, workspace, desk | same; Exchange cmdlets for rooms |
+| Permission | `Place.ReadWrite.All`; app-only also needs Exchange `TenantPlacesManagement` **and** `MailRecipient` | Exchange/Places administrator role or `TenantPlacesManagement`; docs differ on whether `MailRecipient` is also needed |
+| App-only | Documented, with the RBAC prerequisite below | Unattended certificate use not documented |
+| Delegated | Needs an Entra role (least: Exchange Administrator) – unsuitable for Office Managers | Interactive administrator roles |
+| Mailbox | Implicit for workspaces | Implicit for Reservable/DropIn desks |
+| Verification | Response has `id`, `placeId`, `parentId`; read back by `placeId` | `Get-PlaceV3` |
 
-Recommendation: Graph v1.0 in the isolated worker (ADR-004/005/015 amendments, PROPOSED); delegated writes from the web app are rejected by design.
+Preferred for the hierarchy: Graph v1.0 in the isolated worker. Exchange PowerShell stays, unchanged, for Exchange resource-mailbox administration.
+
+### Exact remaining permission risks
+
+- `Place.ReadWrite.All` application permission is tenant-wide once consented.
+- `MailRecipient` manages users and mailboxes; without a proven recipient scope its reach is the whole tenant.
+- No stage (including building/floor/section) is assumed exempt from `MailRecipient`; Microsoft's documentation does not say so.
+- Application roles cannot be derived or copied, and Exchange RBAC is additive to Entra grants: no custom narrower role and no scope reduces a consented `Place.ReadWrite.All`.
+- Workspace and reservable-desk creation creates mailboxes implicitly; not authorized by the ADRs.
+
+### Unresolved Microsoft 365 capability assumptions
+
+1. Service-principal assignability of `TenantPlacesManagement` and `MailRecipient`: the RBAC for Applications article's supported-role list names neither.
+2. Whether a recipient scope takes effect for them.
+3. Whether one or both roles are needed for Places updates (documentation inconsistent; both assumed).
+4. Propagation time before a created object is readable by `placeId` and parent links appear (documented up to 24 hours for some Places experiences).
+
+### Open code gap
+
+`AdministrationRequest.Approve` does not compare approver and requester, so self-approval is possible today for existing request kinds. Enforceable separation (approval check, worker re-check, negative tests) is specified for `BootstrapBuilding` and implemented with it; not retroactive.
 
 ### Minimal development proof (names pending Project Owner)
 
-One building, one floor, one section, one workspace, one desk, created in that order; stage 1 (building, floor, section) first, because mailbox privilege is only needed once workspaces or reservable desks are created. Names and the first-building bootstrap manifest entry must be supplied by the Project Owner; none are invented here.
+Building, floor, section first; workspace and desk only after the mailbox residual privilege is separately approved. No names are invented here.
 
-### Gates (all open)
+### Gates (all open, independent)
 
-1. Confirm the three ADR amendments (Accepted).
-2. Project Owner supplies exact names/properties and the bootstrap manifest entry.
-3. Worker identity and certificate: enroll, store in the worker Key Vault, worker-only access.
-4. Application permission `Place.ReadWrite.All` on the provisioning app: Terraform policy amendment, plan, apply, then administrator consent.
-5. Exchange RBAC for Applications for the worker principal (`TenantPlacesManagement`; `MailRecipient` only after the mailbox residual risk is approved).
-6. Implementation (offline-testable): typed requests for hierarchy kinds, Graph write adapter with read-after-write, bootstrap policy, UI pages. Not started until gate 1.
-7. Real writes with read-after-write and negative authorization tests; only then may write management be called operational.
+1. Accept the amendments after review of this text. 2. Complete inventory. 3. Project Owner supplies exact names and the bootstrap manifest entry. 4. Worker identity and certificate; worker-only Key Vault access. 5. Terraform policy amendment, plan and apply for `Place.ReadWrite.All` on the provisioning app, then administrator consent. 6. Exchange RBAC assignment with proof of assignability and scope. 7. Mailbox-create residual privilege decision. 8. Implementation (typed requests, Graph adapter with read-after-write, bootstrap rule, UI) and offline tests. 9. Real writes with read-after-write and a negative authorization test; only then is write management operational.

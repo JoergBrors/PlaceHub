@@ -81,3 +81,17 @@ Declared, consented, assigned, token-scope and successful-Graph-request states a
 5. Ensure the approved identity has a mailbox/calendar and that resource mailboxes are readable for `getSchedule`.
 
 ADR classification: Existing ADR Applies (ADR-004/005/007/009/016); the credential-registration route in step 4 is ADR Review Required against ADR-016. Worker, Key Vault and Exchange RBAC gates are unchanged and untouched.
+
+## Gate-resolution pass (2026-11-01, second session)
+
+| Operation | Basis | Outcome |
+|---|---|---|
+| Branch diff review (`origin/main..fix/live-read-hardening`) | task instruction | 11 intended files only |
+| Pull request #1 opened into `main` | task instruction | OPEN; `main` has no branch protection and no configured required review or CI checks, so no authorized review path exists yet. Merge left to the Project Owner. |
+| Local `.env`: removed `PLACEHUB_PERMISSIONS_APPROVED`, `_CONSENT_VERIFIED`, `_TENANT_CAPABILITY_VERIFIED` | task instruction; grep proved no reader | done (file is git-ignored) |
+| Web certificate generation | `web_credential_strategy` is `PENDING` in the approval record | NOT executed (BLOCKED_APPROVAL) |
+| Entra credential registration | requires explicit approval and ADR-016 review (policy forbids `key_credentials`) | NOT executed |
+| Terraform re-plan | environment `development` accepts only `main` | NOT_TESTED until PR #1 is merged |
+| Consent policy read (`authorizationPolicy`) | read-only | User consent policies assigned: `microsoft-user-default-recommended`, `-allow-consent-apps`. Whether `Calendars.ReadBasic` qualifies as low-impact under them is not established; `Place.Read.All` is Admin-only regardless. Consent-request policy not readable with this identity (403). |
+
+Live validation (OIDC, `scp`, Places, `getSchedule`, negative cases) remains NOT_TESTED.

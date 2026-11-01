@@ -61,3 +61,17 @@ Use Microsoft Graph v1.0 typed Places list/descendant endpoints for Building, Fl
 - Microsoft Learn: https://learn.microsoft.com/en-us/microsoft-365/places/powershell/new-place
 
 > Hinweis: Microsoft-Links sind Rechercheanker, keine Bestätigung aller API-Details. Unterstützungsstatus und Lizenzierung im Technical Discovery nachweisen.
+
+## Proposed amendment: Microsoft Places write path (2026-11-01)
+
+**Status: PROPOSED.** The Project Owner asked in chat on 2026-11-01 to approve the ADR changes for this write path; the exact text below awaits confirmation before it is marked Accepted. Until then the existing accepted decisions above remain in force and no tenant write is authorized.
+
+**Decision proposed.** Microsoft Graph v1.0 `POST /places` (and `PATCH`/`DELETE` on the same resource) becomes the preferred write interface for the Places hierarchy (building, floor, section, room, workspace, desk), executed only by the isolated provisioning worker with application permission `Place.ReadWrite.All`. Exchange Online PowerShell (`New-Place`, `Set-PlaceV3`) remains the documented fallback, not the default. No beta endpoint is used.
+
+**Evidence (Microsoft Learn, verified 2026-11-01).**
+- Delegated `Place.ReadWrite.All` additionally requires the signed-in user to hold a supported Entra role (least privileged: Exchange Administrator). Office Managers must not hold it, so the web application never calls this API delegated.
+- Application `Place.ReadWrite.All` additionally requires Exchange Application RBAC: `TenantPlacesManagement` (manage Places) and `MailRecipient` (manage users and mailboxes). The Graph permission alone is not sufficient.
+- Graph creates workspaces with a generated `emailAddress`, i.e. a mailbox is created implicitly. That is the residual privilege to approve (see ADR-015 amendment).
+- Places PowerShell cmdlets are documented for interactive administrator roles; unattended certificate authentication is not documented for them and must not be assumed.
+
+**Unchanged.** The frontend application keeps only delegated `Place.Read.All` and `Calendars.ReadBasic`. No delegated write permission is added to it.

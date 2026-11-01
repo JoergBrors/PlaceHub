@@ -67,3 +67,15 @@ The offline POC implements this shape with an in-process mock adapter only; it h
 - Microsoft Learn: https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac
 
 > Hinweis: Microsoft-Links sind Rechercheanker, keine Bestätigung aller API-Details. Unterstützungsstatus und Lizenzierung im Technical Discovery nachweisen.
+
+## Proposed amendment: Microsoft Places write path (2026-11-01)
+
+**Status: PROPOSED.** The Project Owner asked in chat on 2026-11-01 to approve the ADR changes for this write path; the exact text below awaits confirmation before it is marked Accepted. Until then the existing accepted decisions above remain in force and no tenant write is authorized.
+
+**Decision proposed.** The worker's Places writes use Graph v1.0 (ADR-004 amendment) with app-only authentication through the existing isolated workload identity `placehub-m365-provisioning-development` (certificate, worker-only Key Vault access per the accepted Key Vault amendment). Exchange RBAC for Applications is created for that service principal only, with the smallest roles: `TenantPlacesManagement` for hierarchy operations and, only if mailbox creation is separately approved, `MailRecipient` with a management scope limiting it to PlaceHub-marked recipients where the scope mechanism supports it.
+
+**Residual risk to approve explicitly.** `MailRecipient` can manage users and mailboxes. Creating workspaces (and reservable desks) creates mailboxes implicitly, so hierarchy-only creation (building, floor, section) is the first stage and needs no mailbox privilege as far as documented; this is to be verified empirically in the development tenant before any `MailRecipient` assignment.
+
+**Typed request contract (extends ADR-017).** Allowlisted resource types and parameters (`displayName`, `parentId`, documented tags and mode only), immutable approved payload, idempotency key, transactional claim, lease and heartbeat, bounded retries, external read-after-write verification, states `PendingPropagation` and `RequiresReconciliation` for ambiguous outcomes, and no automatic duplicate creation (search by name and parent before retrying a timed-out create). The web process never receives the worker credential, a Key Vault grant or an app-only token.
+
+**Gates (all still open).** Accepting this amendment; exact development resource names; effective `Place.ReadWrite.All` application permission and consent; Exchange RBAC assignment; certificate enrollment and Key Vault access; first-building bootstrap policy; mailbox-create residual scope; an ADR-016-conformant Terraform plan and apply.

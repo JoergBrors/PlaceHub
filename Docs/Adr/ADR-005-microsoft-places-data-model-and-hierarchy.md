@@ -61,3 +61,15 @@ For Phase 2, native Graph `placeId`/`parentId` values are the proposed read hier
 - Microsoft Learn: https://learn.microsoft.com/en-us/microsoft-365/places/powershell/new-place
 
 > Hinweis: Microsoft-Links sind Rechercheanker, keine Bestätigung aller API-Details. Unterstützungsstatus und Lizenzierung im Technical Discovery nachweisen.
+
+## Proposed amendment: Microsoft Places write path (2026-11-01)
+
+**Status: PROPOSED.** The Project Owner asked in chat on 2026-11-01 to approve the ADR changes for this write path; the exact text below awaits confirmation before it is marked Accepted. Until then the existing accepted decisions above remain in force and no tenant write is authorized.
+
+**Decision proposed.** Hierarchy rules follow the documented model: floor → building, section → floor, room → floor or section, workspace and desk → section. The worker validates the parent type and parent existence before every create and verifies the parent relationship after it.
+
+**Identifiers.** `id` is not immutable; `placeId` is the stable identifier. PlaceHub stores and authorizes by `placeId` and re-reads `id` per operation. Location assignments accept either form but are recorded as `placeId`.
+
+**First-building bootstrap (proposed, development only).** A building cannot require an existing building assignment. A dedicated request kind `BootstrapBuilding` is allowed only when: the environment is `development`; a read-after-check shows zero buildings at approval and again at execution; the payload equals an approved manifest entry (exact display name, no free text); requester and approver are different principals and the approver is a `PlaceHub.SystemAdministrator`; and the request is single-use. Creating the building grants nobody access: the location assignment is a separate, owner-controlled configuration step. SystemAdministrator never becomes tenant-wide.
+
+**Existing resources.** Discovery runs before any create; an empty `200` for buildings does not prove that rooms, room lists or workspaces are absent. No duplicate hierarchy is created; existing resources are imported by `placeId`.

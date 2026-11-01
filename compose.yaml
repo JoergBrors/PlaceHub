@@ -9,7 +9,8 @@ services:
     pids_limit: 100
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      PlaceHub__IntegrationMode: OfflineMock
+      Microsoft365__Mode: OfflineMock
+      Microsoft365__AllowSyntheticData: "true"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8080/health/live"]
       interval: 30s

@@ -20,6 +20,7 @@ ADR status is recorded individually. On 2026-10-31 the Project Owner approved th
 | [014](ADR-014-testing-strategy.md) | Testing Strategy | P1 | Accepted |
 | [015](ADR-015-administrative-provisioning-and-privileged-operations.md) | Administrative Provisioning and Privileged Operations | P0 | Proposed |
 | [016](ADR-016-github-actions-terraform-delivery.md) | GitHub Actions Terraform Delivery | P0 | Accepted (amended) |
+| [017](ADR-017-durable-provisioning-queue-and-worker-contract.md) | Durable Provisioning Queue and Worker Contract | P0 | Proposed |
 
 ## Review order
 1. Application architecture: 001, 002, 003.

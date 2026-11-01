@@ -10,6 +10,6 @@
  private IEnumerable<NavItem> VisibleItems => Items.Where(x=>!x.AdminOnly || ActorContext.Current.Role==PlaceHubRole.SystemAdministrator);
  private static readonly NavItem[] Items = [
     new("Arbeitsplatz","","⌂","Dashboard"),new("Arbeitsplatz","buchungskalender","▦","Buchungskalender"),new("Arbeitsplatz","gebaeude","▥","Gebäude"),new("Arbeitsplatz","etagen","≡","Etagen & Bereiche"),new("Arbeitsplatz","schreibtische","▱","Schreibtische"),
-    new("Arbeitsplatz","schreibtischgruppen","♧","Schreibtischgruppen"),new("Arbeitsplatz","parkplaetze","P","Parkplätze"),new("Betrieb","reservierungen","◷","Reservierungen"),new("Betrieb","besucher","♙","Besucher"),
+    new("Arbeitsplatz","schreibtischgruppen","♧","Schreibtischgruppen"),new("Arbeitsplatz","parkplaetze","P","Parkplätze"),new("Betrieb","meine-auftraege","☷","Meine Aufträge"),new("Betrieb","reservierungen","◷","Reservierungen"),new("Betrieb","besucher","♙","Besucher"),
     new("Administration","freigaben","✓","Freigaben",true),new("Administration","provisionierung","↻","Provisionierungsaufträge",true),new("Administration","administration","⚙","Administration",true),new("Administration","diagnose","◇","Integration & Diagnose",true)];
 }

@@ -21,13 +21,20 @@ public sealed record Microsoft365Options
     public bool PermissionsApproved { get; init; }
     public bool ConsentVerified { get; init; }
     public bool TenantCapabilityVerified { get; init; }
+    public bool AllowSyntheticData { get; init; }
 }
 
 public static class Microsoft365Configuration
 {
     public static void Validate(Microsoft365Options options)
     {
-        if (options.Mode == IntegrationMode.OfflineMock) return;
+        if (options.Mode == IntegrationMode.OfflineMock)
+        {
+            if (!options.AllowSyntheticData) throw new IntegrationConfigurationException("SYNTHETIC_PROFILE_NOT_EXPLICITLY_ENABLED");
+            if (!string.IsNullOrWhiteSpace(options.TenantId) || !string.IsNullOrWhiteSpace(options.ClientId) || options.CredentialProvider != "None" || options.PermissionsApproved || options.ConsentVerified || options.TenantCapabilityVerified)
+                throw new IntegrationConfigurationException("MOCK_LIVE_CONFIGURATION_CONFLICT");
+            return;
+        }
         if (!Guid.TryParse(options.TenantId, out _) || !Guid.TryParse(options.ClientId, out _)) throw new IntegrationConfigurationException("ENTRA_IDENTIFIERS_INVALID");
         if (options.CallbackPath != "/signin-oidc" || options.SignedOutCallbackPath != "/signout-callback-oidc") throw new IntegrationConfigurationException("OIDC_CALLBACK_INVALID");
         if (options.CredentialProvider == "None") throw new IntegrationConfigurationException("CONFIDENTIAL_CLIENT_CREDENTIAL_UNAVAILABLE");

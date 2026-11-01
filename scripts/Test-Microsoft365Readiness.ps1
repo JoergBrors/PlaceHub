@@ -28,6 +28,7 @@ try {
     if ($policy.applications.'azuread_application.placehub_web'.required_resource_access.Count -ne 0) { Stop-Safe 'UNAPPROVED_PERMISSION_DECLARATION_PRESENT' }
     if ($terraform -match 'Place\.Read|Calendars\.Read|Place\.ReadWrite|Calendars\.ReadWrite') { Stop-Safe 'UNAPPROVED_TERRAFORM_PERMISSION_PRESENT' }
     if ($settings.Microsoft365.Mode -ne 'OfflineMock') { Stop-Safe 'OFFLINE_DEFAULT_NOT_ENFORCED' }
+    if ($settings.Microsoft365.AllowSyntheticData -ne $true) { Stop-Safe 'SYNTHETIC_PROFILE_NOT_EXPLICIT' }
     Write-Status 'LOCAL_READINESS_OK'
     Write-Status 'PERMISSION_DECLARATIONS_EMPTY'
     Write-Status 'OFFLINE_DEFAULT_CONFIRMED'

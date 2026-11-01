@@ -1,0 +1,22 @@
+{
+  "status": "PROPOSED_NOT_APPROVED",
+  "environment": "development",
+  "target_policy_version": "2026-11-01.proposed",
+  "automatic_apply_allowed": false,
+  "resource_applications": {
+    "microsoft_graph": "00000003-0000-0000-c000-000000000000",
+    "exchange_online": "00000002-0000-0ff1-ce00-000000000000"
+  },
+  "applications": {
+    "placehub-frontend-development": [
+      { "name": "Place.Read.All", "id": "cb8f45a0-5c2e-4ea1-b803-84b870a7d7ec", "type": "Scope", "resource": "microsoft_graph", "approval": "REQUIRED" },
+      { "name": "Calendars.ReadBasic", "id": "662d75ba-a364-42ad-adee-f5f880ea4878", "type": "Scope", "resource": "microsoft_graph", "approval": "REQUIRED" },
+      { "name": "Calendars.ReadWrite", "id": "1ec239c2-d7c9-4623-a91a-a9775856bb36", "type": "Scope", "resource": "microsoft_graph", "approval": "ADR_007_REQUIRED" }
+    ],
+    "placehub-m365-provisioning-development": [
+      { "name": "Place.ReadWrite.All", "id": "f1f5e9aa-ad18-4b97-883e-6aa7e95b7a5f", "type": "Role", "resource": "microsoft_graph", "approval": "ADR_005_015_REQUIRED" },
+      { "name": "Exchange.ManageAsApp", "id": "dc50a0fb-09a3-484d-be87-e023b12c6440", "type": "Role", "resource": "exchange_online", "approval": "ADR_015_AND_EXCHANGE_RBAC_REQUIRED" }
+    ]
+  },
+  "explicitly_excluded": ["User.Read", "Place.ReadWrite.All delegated", "AppRoleAssignment.ReadWrite.All", "Application.ReadWrite.All", "automatic_admin_consent"]
+}

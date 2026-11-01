@@ -7,7 +7,9 @@ $calendar = Get-Content (Join-Path $root 'src/PlaceHub.Web/Components/Pages/Book
 $program = Get-Content (Join-Path $root 'src/PlaceHub.Web/Program.cs') -Raw
 if ($app -notmatch '@Assets\["app\.css"\]') { throw 'UI_ASSET_FINGERPRINTING_MISSING' }
 foreach ($token in @('--navy-900','--indigo-600','--success','--warning','--danger',':focus-visible','prefers-reduced-motion','max-width:820px')) { if ($css -notmatch [regex]::Escape($token)) { throw "UI_TOKEN_MISSING" } }
-foreach ($route in @('buchungskalender','schreibtischgruppen','parkplaetze','freigaben','diagnose')) { if ($nav -notmatch $route) { throw 'UI_ROUTE_MISSING' } }
+foreach ($route in @('buchungskalender','schreibtischgruppen','parkplaetze','meine-auftraege','freigaben','diagnose')) { if ($nav -notmatch $route) { throw 'UI_ROUTE_MISSING' } }
+$myRequests = Get-Content (Join-Path $root 'src/PlaceHub.Web/Components/Pages/MyRequests.razor') -Raw
+foreach ($control in @('Meine Aufträge','Wartet auf Worker','Timeline','ADR-017','LOCATION')) { if ($myRequests -notmatch [regex]::Escape($control)) { throw 'REQUEST_DASHBOARD_CONTROL_MISSING' } }
 foreach ($state in @('Verfügbar','Reserviert','Unbekannt')) { if ($calendar -notmatch $state) { throw 'CALENDAR_STATE_MISSING' } }
 if ($program -notmatch 'StaticWebAssetsLoader\.UseStaticWebAssets') { throw 'PRODUCTION_BUILD_STATIC_ASSETS_NOT_ENABLED' }
 'UI_STATIC_TESTS_OK'

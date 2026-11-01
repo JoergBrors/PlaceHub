@@ -1,0 +1,32 @@
+@page "/meine-auftraege"
+@inject AdministrationService Service
+@inject DemoActorContext ActorContext
+@rendermode InteractiveServer
+<PageTitle>Meine Aufträge · PlaceHub</PageTitle>
+
+<div class="page-heading"><div class="page-title"><span class="page-icon" aria-hidden="true">☷</span><div><h1>Meine Aufträge</h1><p>Eigene und standortbezogen autorisierte Ressourcenaufträge.</p></div></div><StatusBadge Text="Offline-Mock" /></div>
+<div class="notice" role="status"><strong>Keine Live-Ausführung</strong>Die Ansicht verwendet den flüchtigen lokalen PoC-Speicher. Eine dauerhafte Queue und ein separater Worker warten auf ADR-017/ADR-015-Freigabe.</div>
+
+<section class="kpi-grid" aria-label="Auftragsübersicht">
+ <article class="kpi-card"><div><span class="kpi-label">Offen</span><b class="kpi-value">@OpenCount</b><small class="kpi-context">Noch nicht abgeschlossen</small></div></article>
+ <article class="kpi-card amber"><div><span class="kpi-label">Freigabe</span><b class="kpi-value">@Requests.Count(x=>x.State==RequestState.AwaitingApproval)</b><small class="kpi-context">Prüfung ausstehend</small></div></article>
+ <article class="kpi-card"><div><span class="kpi-label">Wartet auf Worker</span><b class="kpi-value">@Requests.Count(x=>x.State==RequestState.Approved)</b><small class="kpi-context">Noch nicht gestartet</small></div></article>
+ <article class="kpi-card green"><div><span class="kpi-label">Abgeschlossen</span><b class="kpi-value">@Requests.Count(x=>x.State==RequestState.Succeeded)</b><small class="kpi-context">Mock-verifiziert</small></div></article>
+</section>
+
+<div class="filters"><label><span>Suche</span><input aria-label="Aufträge durchsuchen" @bind="search" @bind:event="oninput" placeholder="Nummer, Ressource oder Standort …" /></label><label><span>Status</span><select @bind="state"><option value="">Alle Status</option>@foreach(var value in Enum.GetValues<RequestState>()){<option value="@value">@Label(value)</option>}</select></label></div>
+<div class="table-wrap"><table><thead><tr><th>Auftrag</th><th>Ressource</th><th>Standort</th><th>Status</th><th>Letzte Änderung</th><th>Nächster Schritt</th><th>Details</th></tr></thead><tbody>
+@foreach(var request in Filtered){var latest=request.Audit.Last();<tr><td><b>@request.Id.ToString("N")[..8]</b><small>@request.CorrelationId[..8]</small></td><td>@request.Specification.Name<small>@request.Specification.ResourceKind · @request.Specification.Operation</small></td><td>@request.Specification.LocationId</td><td><StatusBadge Text="@Label(request.State)" /></td><td>@latest.At.ToLocalTime().ToString("dd.MM.yyyy HH:mm")<small>@latest.EventCode</small></td><td>@Next(request.State)</td><td><button class="ghost" @onclick="()=>selected=request">Timeline</button></td></tr>}
+</tbody></table></div>
+@if(!Filtered.Any()){<div class="empty"><h2>Keine passenden Aufträge</h2><p>Für die aktuelle Rolle und Standortzuordnung sind keine Aufträge sichtbar.</p></div>}
+@if(selected is not null){<div class="panel"><h2>Auftrag @selected.Id.ToString("N")[..8]</h2><p><b>Antragsteller:</b> @selected.RequestedBy · <b>Freigabe:</b> @(selected.ApprovedBy ?? "Noch nicht erteilt")</p><ol>@foreach(var entry in selected.Audit.OrderBy(x=>x.At)){<li><b>@entry.At.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss")</b> – @TimelineLabel(entry.EventCode) <code>@entry.EventCode</code></li>}</ol><p><b>Sicherer Status:</b> @selected.OutcomeCode</p><button class="secondary" @onclick="()=>selected=null">Schließen</button></div>}
+
+@code {
+ private string search="",state=""; private AdministrationRequest? selected;
+ private IReadOnlyCollection<AdministrationRequest> Requests=>Service.List(ActorContext.Current);
+ private IEnumerable<AdministrationRequest> Filtered=>Requests.Where(x=>(search.Length==0||x.Id.ToString("N").Contains(search,StringComparison.OrdinalIgnoreCase)||x.Specification.Name.Contains(search,StringComparison.OrdinalIgnoreCase)||x.Specification.LocationId.Contains(search,StringComparison.OrdinalIgnoreCase))&&(state.Length==0||x.State.ToString()==state));
+ private int OpenCount=>Requests.Count(x=>x.State is not (RequestState.Succeeded or RequestState.Rejected or RequestState.Failed));
+ private static string Label(RequestState s)=>s switch{RequestState.AwaitingApproval=>"Freigabe ausstehend",RequestState.Approved=>"Wartet auf Worker",RequestState.Running=>"In Bearbeitung",RequestState.PendingPropagation=>"Externe Verarbeitung ausstehend",RequestState.Succeeded=>"Erfolgreich",RequestState.RequiresReconciliation=>"Abgleich erforderlich",RequestState.PartiallyConfigured=>"Teilweise konfiguriert",RequestState.Failed=>"Fehlgeschlagen",RequestState.Rejected=>"Abgelehnt",_=>s.ToString()};
+ private static string Next(RequestState s)=>s switch{RequestState.Draft=>"Einreichen",RequestState.AwaitingApproval=>"Administrator prüft",RequestState.Approved=>"Wartet auf Worker",RequestState.Running=>"Verifizierung abwarten",RequestState.PendingPropagation=>"Externen Zustand prüfen",RequestState.RequiresReconciliation or RequestState.PartiallyConfigured=>"Abgleich erforderlich",_=>"Kein automatischer Schritt"};
+ private static string TimelineLabel(string code)=>code switch{"REQUEST_DRAFT"=>"Auftrag erstellt","REQUEST_SUBMITTED"=>"Geschäftliche Prüfung abgeschlossen","APPROVAL_REQUIRED"=>"Freigabe angefordert","REQUEST_APPROVED"=>"Versionsgebunden freigegeben","REQUEST_REJECTED"=>"Abgelehnt","MOCK_EXECUTION_STARTED"=>"Mock-Worker gestartet","MOCK_VERIFIED"=>"Ergebnis verifiziert","MOCK_PARTIAL_CONFIGURATION"=>"Teilkonfiguration erkannt","MOCK_RECONCILIATION_REQUIRED"=>"Abgleich erforderlich",_=>"Status aktualisiert"};
+}

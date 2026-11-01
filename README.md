@@ -18,6 +18,8 @@ The responsive enterprise shell, design tokens, booking calendar and accessibili
 
 Microsoft 365 Phase-2 adapters remain offline by default. Their supported read-only capabilities, permission matrix and activation gates are documented in [Microsoft 365 read-only readiness](Docs/microsoft365-readonly-readiness.md).
 
+The Phase-3 Office Management dashboard exposes authorized local mock requests at **Meine Aufträge**. Durable queue and isolated worker implementation are intentionally blocked pending the proposed [ADR-017](Docs/Adr/ADR-017-durable-provisioning-queue-and-worker-contract.md) and ADR-015 approval; see [Phase 3 readiness](Docs/phase3-worker-queue-readiness.md).
+
 ## VS Code debugging
 
 Open the repository root in VS Code, select **Run and Debug**, then start **PlaceHub Web (Development)** with `F5`. The browser opens the desk-pool page at `http://localhost:5000`. **PlaceHub Web (Production assets)** runs the regression-relevant Production configuration on port `5001`. Build, test and watch tasks are available through **Terminal → Run Task**.

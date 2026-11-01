@@ -10,7 +10,13 @@ public sealed class Microsoft365IntegrationTests
     private static Microsoft365Options LiveOptions => new() { Mode=IntegrationMode.Microsoft365ReadOnly,TenantId="11111111-1111-1111-1111-111111111111",ClientId="22222222-2222-2222-2222-222222222222",CredentialProvider="ApprovedTestProvider",PermissionsApproved=true,ConsentVerified=true,TenantCapabilityVerified=true };
     private static ReadAuthorizationContext LiveAuth(IReadOnlySet<string>? scopes=null,IReadOnlySet<string>? locations=null,IReadOnlySet<string>? mailboxes=null) => new("11111111-1111-1111-1111-111111111111","subject",PlaceHubRole.OfficeManager,locations??new HashSet<string>{"building-1"},scopes??new HashSet<string>{"Place.Read.All","Calendars.ReadBasic"},mailboxes??new HashSet<string>(StringComparer.OrdinalIgnoreCase){"p101@example.invalid"},false);
 
-    [Fact] public void OfflineModeNeedsNoCredential() => Microsoft365Configuration.Validate(new());
+    [Fact] public void OfflineModeNeedsExplicitSyntheticProfile() => Microsoft365Configuration.Validate(new(){AllowSyntheticData=true});
+
+    [Fact] public void OfflineModeWithoutExplicitProfileFailsClosed()
+    { var ex=Assert.Throws<IntegrationConfigurationException>(()=>Microsoft365Configuration.Validate(new()));Assert.Equal("SYNTHETIC_PROFILE_NOT_EXPLICITLY_ENABLED",ex.Code); }
+
+    [Fact] public void OfflineModeRejectsLiveIdentityOrCredentialConfiguration()
+    { var ex=Assert.Throws<IntegrationConfigurationException>(()=>Microsoft365Configuration.Validate(new(){AllowSyntheticData=true,TenantId=Guid.NewGuid().ToString()}));Assert.Equal("MOCK_LIVE_CONFIGURATION_CONFLICT",ex.Code); }
 
     [Fact] public void ReadOnlyModeFailsClosedWithoutCredential()
     { var options=new Microsoft365Options{Mode=IntegrationMode.Microsoft365ReadOnly,TenantId=Guid.NewGuid().ToString(),ClientId=Guid.NewGuid().ToString()};var ex=Assert.Throws<IntegrationConfigurationException>(()=>Microsoft365Configuration.Validate(options));Assert.Equal("CONFIDENTIAL_CLIENT_CREDENTIAL_UNAVAILABLE",ex.Code); }

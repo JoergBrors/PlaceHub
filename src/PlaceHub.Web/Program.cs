@@ -55,7 +55,8 @@ static Microsoft365Options ReadMicrosoft365Options(IConfiguration configuration)
         CredentialProvider = configuration["Microsoft365:CredentialProvider"] ?? "None",
         PermissionsApproved = bool.TryParse(configuration["Microsoft365:PermissionsApproved"], out var permissions) && permissions,
         ConsentVerified = bool.TryParse(configuration["Microsoft365:ConsentVerified"], out var consent) && consent,
-        TenantCapabilityVerified = bool.TryParse(configuration["Microsoft365:TenantCapabilityVerified"], out var capability) && capability
+        TenantCapabilityVerified = bool.TryParse(configuration["Microsoft365:TenantCapabilityVerified"], out var capability) && capability,
+        AllowSyntheticData = bool.TryParse(configuration["Microsoft365:AllowSyntheticData"], out var synthetic) && synthetic
     };
 }
 

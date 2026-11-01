@@ -24,6 +24,12 @@ public sealed class AdministrationWorkflowTests
     [Fact] public void CrossLocationApprovalIsDenied()
     { var r=new AdministrationRequest(Spec("BER"),Office(),"key-4","cor-4");r.Submit(Office(),r.Version);var ex=Assert.Throws<AuthorizationException>(()=>r.Approve(Admin("HAM"),r.Version));Assert.Equal("LOCATION_OUT_OF_SCOPE",ex.Code); }
 
+    [Fact] public void OfficeManagerSeesAuthorizedLocationButNotOtherLocations()
+    { var service=Service(out _);service.Create(Spec("BER","Berlin"),Office("BER"),"visible");service.Create(Spec("HAM","Hamburg"),Office("HAM"),"hidden");var visible=service.List(Office("BER"));Assert.Single(visible);Assert.Equal("BER",visible.Single().Specification.LocationId); }
+
+    [Fact] public void LocationManagerCannotApproveEvenInsideAssignedLocation()
+    { var request=new AdministrationRequest(Spec(),Office(),"location-manager","cor-location");request.Submit(Office(),request.Version);var manager=new Actor("location",PlaceHubRole.LocationManager,new HashSet<string>{"BER"});var ex=Assert.Throws<AuthorizationException>(()=>request.Approve(manager,request.Version));Assert.Equal("ADMIN_ROLE_REQUIRED",ex.Code); }
+
     [Fact] public void ApprovedRequestCannotBeModified()
     { var r=new AdministrationRequest(Spec(),Office(),"key-5","cor-5");r.Submit(Office(),r.Version);r.Approve(Admin(),r.Version);Assert.Throws<WorkflowException>(()=>r.Edit(Spec(name:"changed"),Office(),r.Version)); }
 

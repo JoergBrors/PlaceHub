@@ -13,11 +13,15 @@ public sealed record Actor(string Id, PlaceHubRole Role, IReadOnlySet<string> Lo
 public sealed record ResourceSpecification(
     ResourceKind ResourceKind, OperationKind Operation, string LocationId, string Building,
     string Floor, string Section, string Name, int Capacity, string? MailboxAlias,
-    string PolicyTemplateId = "standard", long ExpectedResourceVersion = 0, PlacesWriteSpec? Places = null)
+    string PolicyTemplateId = "standard", long ExpectedResourceVersion = 0, PlacesWriteSpec? Places = null, ExchangeSpec? Exchange = null)
 {
     /// <summary>Builds a Places hierarchy request; <paramref name="locationId"/> is the authorization scope (an assigned building, or the owner-controlled bootstrap scope).</summary>
     public static ResourceSpecification ForPlaces(OperationKind operation, string locationId, PlacesWriteSpec places) =>
         new(ResourceKind.PlacesHierarchy, operation, locationId, "-", "-", "-", places.DisplayName, 1, null, Places: places);
+
+    /// <summary>Builds a typed Exchange parking-resource request. Only values travel; cmdlets and parameters are fixed in the worker.</summary>
+    public static ResourceSpecification ForExchange(OperationKind operation, string locationId, string displayName, ExchangeSpec exchange) =>
+        new(ResourceKind.ParkingResource, operation, locationId, "-", "-", "-", displayName, 1, null, exchange.PolicyTemplateId ?? "standard", Exchange: exchange);
 }
 
 public sealed record AuditEntry(DateTimeOffset At, string CorrelationId, string EventCode, RequestState State, int Version);
@@ -123,6 +127,11 @@ public sealed class AdministrationRequest
         Required(spec.LocationId, "LOCATION_REQUIRED");
         if ((spec.ResourceKind == ResourceKind.PlacesHierarchy) != (spec.Places is not null)) throw new ValidationException("PLACES_PAYLOAD_MISMATCH");
         if (spec.Places is not null) { spec.Places.Validate(spec.Operation); if (spec.Name != spec.Places.DisplayName) throw new ValidationException("PLACES_PAYLOAD_MISMATCH"); return; }
+        if (spec.Exchange is not null)
+        {
+            if (spec.ResourceKind != ResourceKind.ParkingResource) throw new ValidationException("EXCHANGE_PAYLOAD_MISMATCH");
+            spec.Exchange.Validate(spec.Operation); Required(spec.Name, "NAME_REQUIRED"); return;
+        }
         Required(spec.Building, "BUILDING_REQUIRED"); Required(spec.Name, "NAME_REQUIRED");
         if (spec.Capacity < 1 || spec.Capacity > 500) throw new ValidationException("CAPACITY_OUT_OF_RANGE");
         if (spec.ResourceKind == ResourceKind.DeskPool && (string.IsNullOrWhiteSpace(spec.Floor) || string.IsNullOrWhiteSpace(spec.Section))) throw new ValidationException("WORKSPACE_PARENT_REQUIRED");

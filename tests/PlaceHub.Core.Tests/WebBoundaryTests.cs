@@ -6,7 +6,7 @@ namespace PlaceHub.Core.Tests;
 
 public sealed class WebBoundaryTests
 {
-    private static readonly Type[] Privileged = [typeof(IPlacesWriteClient), typeof(GraphPlacesWriteClient), typeof(IWorkerTokenProvider), typeof(UnavailableWorkerTokenProvider), typeof(PlacesProvisioningWorker), typeof(IBootstrapGuard)];
+    private static readonly Type[] Privileged = [typeof(IPlacesWriteClient), typeof(GraphPlacesWriteClient), typeof(IWorkerTokenProvider), typeof(UnavailableWorkerTokenProvider), typeof(PlacesProvisioningWorker), typeof(IBootstrapGuard), typeof(IExchangeCommandRunner), typeof(GuardedExchangeRunner), typeof(UnavailableExchangeCommandRunner), typeof(ExchangeProvisioningWorker)];
 
     private static IEnumerable<Type> WebTypes() => typeof(PlaceHub.Web.CurrentActorContext).Assembly.GetTypes();
 
@@ -31,7 +31,7 @@ public sealed class WebBoundaryTests
         Assert.NotNull(root);
         var web = Path.Combine(root!, "src", "PlaceHub.Web");
         var text = string.Join("\n", Directory.EnumerateFiles(web, "*.*", SearchOption.AllDirectories).Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}") && !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}") && (f.EndsWith(".cs") || f.EndsWith(".razor") || f.EndsWith(".json"))).Select(File.ReadAllText));
-        foreach (var forbidden in new[] { "IPlacesWriteClient", "GraphPlacesWriteClient", "IWorkerTokenProvider", "PlacesProvisioningWorker", "Place.ReadWrite", "Exchange.ManageAsApp", "KeyVault", "client_secret" })
+        foreach (var forbidden in new[] { "IPlacesWriteClient", "GraphPlacesWriteClient", "IWorkerTokenProvider", "PlacesProvisioningWorker", "IExchangeCommandRunner", "ExchangeProvisioningWorker", "GuardedExchangeRunner", "Place.ReadWrite", "Exchange.ManageAsApp", "KeyVault", "client_secret" })
             Assert.DoesNotContain(forbidden, text);
     }
 

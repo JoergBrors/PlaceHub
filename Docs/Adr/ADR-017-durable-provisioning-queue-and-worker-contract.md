@@ -53,9 +53,9 @@ SQLite file access becomes security-sensitive. Claims require transactional test
 - `../exchange-provisioning-architecture.md`
 - `../ui-driven-resource-administration.md`
 
-## Proposed amendment: mandatory requester/approver separation (2026-11-01)
+## Accepted amendment (target architecture): mandatory requester/approver separation (2026-11-01)
 
-**Status: PROPOSED – not Accepted.** The behavior is implemented in code and tested, but it tightens the accepted PoC workflow (a single SystemAdministrator could previously create, approve and run a request), so Project Owner acceptance of this text is required.
+**Status: ACCEPTED as target architecture (Project Owner, 2026-11-01).** Approval wording: "ADR-004, ADR-005, ADR-015 und ADR-017 als Zielarchitektur freigeben, ohne operative Rechtefreigabe". This accepts the design only. NOT approved and still gated separately: effective Graph or Exchange permissions and consent, Exchange RBAC assignment, Terraform declarations and apply, worker identity, certificate and Key Vault access, worker activation, automatic mailbox creation, the bootstrap manifest content and any tenant write.
 
 Invariants for every privileged request kind and operation (Create, Update, ChangeCapacity, ChangeBookingPolicy, Disable, Reconcile, BootstrapBuilding and Places hierarchy writes):
 

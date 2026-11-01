@@ -62,9 +62,9 @@ For Phase 2, native Graph `placeId`/`parentId` values are the proposed read hier
 
 > Hinweis: Microsoft-Links sind Rechercheanker, keine Bestätigung aller API-Details. Unterstützungsstatus und Lizenzierung im Technical Discovery nachweisen.
 
-## Proposed amendment: Microsoft Places write path (2026-11-01)
+## Accepted amendment (target architecture): Microsoft Places write path (2026-11-01)
 
-**Status: PROPOSED – not Accepted.** The Project Owner accepted the target architecture in principle on 2026-11-01 and required the corrections below before acceptance. Existing accepted decisions remain in force; no tenant write, permission declaration, consent, RBAC assignment, worker activation or Key Vault access is authorized by this text.
+**Status: ACCEPTED as target architecture (Project Owner, 2026-11-01).** Approval wording: "ADR-004, ADR-005, ADR-015 und ADR-017 als Zielarchitektur freigeben, ohne operative Rechtefreigabe". This accepts the design only. NOT approved and still gated separately: effective Graph or Exchange permissions and consent, Exchange RBAC assignment, Terraform declarations and apply, worker identity, certificate and Key Vault access, worker activation, automatic mailbox creation, the bootstrap manifest content and any tenant write.
 
 **Proposed hierarchy rules (Microsoft Learn).** Floor -> building; section -> floor; room -> floor or section; workspace and desk -> section. The worker rejects a create whose parent is missing or of the wrong type, and after the create re-reads the object and verifies `parentId`.
 

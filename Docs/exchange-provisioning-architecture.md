@@ -207,3 +207,9 @@ All integration tests use synthetic resources in a separately approved test tena
 - [Key Vault Azure RBAC guide](https://learn.microsoft.com/azure/key-vault/general/rbac-guide)
 - [Key Vault soft delete and purge protection](https://learn.microsoft.com/azure/key-vault/general/soft-delete-overview)
 
+## Implementation status (2026-11-01)
+
+Implemented and tested offline, disabled by default (`ExchangeProvisioningOptions.Enabled=false`): typed `ExchangeSpec`, `ExchangeCommandPlanner` with the fixed allowlist below, `GuardedExchangeRunner`, `ExchangeProvisioningWorker`, and the PlaceHub-owned parking metadata module (`ParkingService`). Cmdlets: `Get-EXOMailbox` (Identity, Properties), `Get-CalendarProcessing` (Identity), `New-Mailbox` (Equipment or Room, Name, Alias, DisplayName, PrimarySmtpAddress), `Set-Mailbox` (Identity, DisplayName), `Set-CalendarProcessing` (Identity, AutomateProcessing, AllowConflicts, BookingWindowInDays, MaximumDurationInMinutes, AllowRecurringMeetings). No `Remove-*`, no delegation, forwarding or type-conversion parameters; values are validated against strict patterns and rejected if they contain shell metacharacters. The two policy templates `standard` and `restricted` are **proposals** built from those documented parameters and need Project Owner approval.
+
+Gates (all closed): worker activation, `MailboxCreationApproved` (organization-wide `New-Mailbox` residual risk), `ApprovedMailboxType` (Equipment versus Room, ADR-006 undecided: creation is refused while null), approved SMTP domains and name prefix, and a real runner. There is **no real PowerShell runner** (`UnavailableExchangeCommandRunner`); it requires the clean-room proof, pinned `ExchangeOnlineManagement` version and certificate source described above. Disable semantics are undecided (`DISABLE_SEMANTICS_NOT_DECIDED`); deletion does not exist. The web process references none of these worker types (`WebBoundaryTests`). Live Exchange behavior is NOT_TESTED.
+

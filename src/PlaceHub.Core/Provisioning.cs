@@ -60,6 +60,7 @@ public sealed class AdministrationService(IAdministrationRepository repository, 
         if (!repository.TryAdd(request)) throw new WorkflowException("DUPLICATE_REQUEST");
         return request;
     }
+    internal AdministrationRequest? FindUnscoped(Guid id) => repository.Find(id);
     public IReadOnlyCollection<AdministrationRequest> List(Actor actor) => repository.GetAll().Where(x => actor.LocationIds.Contains(x.Specification.LocationId)).ToArray();
     public AdministrationRequest Get(Guid id, Actor actor)
     {

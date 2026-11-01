@@ -134,7 +134,13 @@ function Test-ApplicationPolicy {
     if (-not (Test-ExactSet $actualRedirects (Get-Array $ApplicationPolicy.redirect_uris))) { return (Set-FailedCheck 'redirect_uris') }
     $actualHomepage = if ($null -eq $web) { $null } else { Get-PropertyValue $web 'homepage_url' }
     $actualLogout = if ($null -eq $web) { $null } else { Get-PropertyValue $web 'logout_url' }
-    if ($actualHomepage -ne $ApplicationPolicy.homepage_url -or $actualLogout -ne $ApplicationPolicy.logout_url) { return (Set-FailedCheck 'homepage_or_logout') }
+    # The provider reports an unset URL as an empty string while the policy records it as null; both mean "not set".
+    $actualHomepage = if ([string]::IsNullOrEmpty([string]$actualHomepage)) { $null } else { [string]$actualHomepage }
+    $actualLogout = if ([string]::IsNullOrEmpty([string]$actualLogout)) { $null } else { [string]$actualLogout }
+    if ($actualHomepage -ne $ApplicationPolicy.homepage_url -or $actualLogout -ne $ApplicationPolicy.logout_url) {
+        $kind = { param($actual, $expected) if ($actual -eq $expected) { 'match' } elseif ($null -eq $actual) { 'unset-but-policy-set' } elseif ($null -eq $expected) { 'set-but-policy-unset' } else { 'differs' } }
+        return (Set-FailedCheck "homepage_or_logout address=$Address homepage=$(& $kind $actualHomepage $ApplicationPolicy.homepage_url) logout=$(& $kind $actualLogout $ApplicationPolicy.logout_url)")
+    }
     if ($null -ne $web) {
         $implicitGrant = Get-PropertyValue $web 'implicit_grant'
         if ($implicitGrant -is [System.Collections.IList]) { $implicitGrant = @($implicitGrant) | Select-Object -First 1 }

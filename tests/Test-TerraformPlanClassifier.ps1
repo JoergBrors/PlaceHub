@@ -58,6 +58,10 @@ try {
     $terraformOrdered = New-WebAfter
     $terraformOrdered.required_resource_access = @([ordered]@{ resource_access=@([ordered]@{id='cb8f45a0-5c2e-4ea1-b803-84b870a7d7ec';type='Scope'},[ordered]@{id='662d75ba-a364-42ad-adee-f5f880ea4878';type='Scope'}); resource_app_id='00000003-0000-0000-c000-000000000000' })
     Invoke-Case required-access-key-and-permission-order-insensitive @(New-Change azuread_application.placehub_web azuread_application @('create') $null $terraformOrdered) CREATE_ONLY
+    $prov = [ordered]@{ display_name='placehub-m365-provisioning-development'; sign_in_audience='AzureADMyOrg'; fallback_public_client_enabled=$false; owners=@('synthetic-owner'); app_role=@(); required_resource_access=@(); web=@(@{ homepage_url=''; logout_url=''; redirect_uris=@(); implicit_grant=@() }) }
+    Invoke-Case provisioning-empty-string-urls-equal-unset @(New-Change azuread_application.m365_provisioning azuread_application @('no-op') $prov $prov) NO_CHANGE
+    $provBad = [ordered]@{} + $prov; $provBad.web = @(@{ homepage_url='https://synthetic.invalid/'; logout_url=''; redirect_uris=@(); implicit_grant=@() })
+    Invoke-Case provisioning-unexpected-homepage-rejected @(New-Change azuread_application.m365_provisioning azuread_application @('update') $prov $provBad) UNKNOWN_OR_UNVERIFIABLE 1 'synthetic.invalid'
     $badRra = New-WebAfter
     $badRra.required_resource_access = @([ordered]@{ resource_app_id='00000003-0000-0000-c000-000000000000'; resource_access=@([ordered]@{id='cb8f45a0-5c2e-4ea1-b803-84b870a7d7ec';type='Scope'}) })
     $diag = & pwsh -NoProfile -Command "`$p=Join-Path '$temporaryDirectory' 'diag.json'; [ordered]@{format_version='1.2';terraform_version='1.16.1';resource_changes=@(@{address='azuread_application.placehub_web';mode='managed';type='azuread_application';change=@{actions=@('create');before=`$null;after=(ConvertFrom-Json '$((ConvertTo-Json $badRra -Depth 20 -Compress).Replace("'","''"))');after_unknown=@{}}})} | ConvertTo-Json -Depth 40 | Set-Content `$p; & '$classifier' -PlanJsonPath `$p -PolicyPath '$policy' -Environment development" 2>&1 | Out-String

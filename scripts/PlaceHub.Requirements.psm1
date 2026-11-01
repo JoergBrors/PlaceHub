@@ -80,6 +80,15 @@ function Invoke-GraphGet {
     return [pscustomobject]@{ Ok = $true; Reason = ''; Data = ($result.Output | ConvertFrom-Json) }
 }
 
+function Invoke-MgGet {
+    <# Read-only GET through an EXISTING Microsoft Graph PowerShell session. It never connects, never prompts and rejects anything but v1.0 GET URLs. #>
+    [CmdletBinding()] param([Parameter(Mandatory)][string]$Url)
+    if ($Url -notmatch '^https://graph\.microsoft\.com/v1\.0/places(/[A-Za-z0-9_.-]{1,128}|/microsoft\.graph\.[A-Za-z]{3,20})(\?[A-Za-z0-9=$,._&%-]{0,200})?$') { Stop-Requirements -Exit SECURITY_BLOCKED -Message 'GRAPH_URL_NOT_ALLOWED' }
+    if (-not (Get-Command Invoke-MgGraphRequest -ErrorAction SilentlyContinue) -or -not (Get-MgContext -ErrorAction SilentlyContinue)) { return [pscustomobject]@{ Ok = $false; Reason = 'AUTHENTICATION_REQUIRED'; Data = $null } }
+    try { return [pscustomobject]@{ Ok = $true; Reason = ''; Data = (Invoke-MgGraphRequest -Method GET -Uri $Url -ErrorAction Stop) } }
+    catch { $r = if ($_.Exception.Message -match '403|Forbidden') { 'PERMISSION_DENIED' } elseif ($_.Exception.Message -match '404|NotFound') { 'NOT_FOUND' } elseif ($_.Exception.Message -match '401|Unauthorized') { 'AUTHENTICATION_REQUIRED' } else { 'REQUEST_FAILED' }; return [pscustomobject]@{ Ok = $false; Reason = $r; Data = $null } }
+}
+
 function Read-EnvValue {
     <# Reads only named keys from a KEY=VALUE file. The file is never executed or dumped. #>
     [CmdletBinding()] param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][ValidatePattern('^[A-Z][A-Z0-9_]{1,64}$')][string]$Key)
@@ -169,4 +178,4 @@ function Write-RequirementsReport {
     [pscustomobject]@{ Json = $jsonPath; Markdown = $mdPath }
 }
 
-Export-ModuleMember -Function Get-RequirementsExitCodes, Get-RequirementsActionClasses, Stop-Requirements, Protect-Text, Hide-Id, Invoke-Tool, Invoke-GraphGet, Read-EnvValue, Assert-ActionAuthorized, New-CheckResult, Write-RequirementsReport
+Export-ModuleMember -Function Get-RequirementsExitCodes, Get-RequirementsActionClasses, Stop-Requirements, Protect-Text, Hide-Id, Invoke-Tool, Invoke-GraphGet, Invoke-MgGet, Read-EnvValue, Assert-ActionAuthorized, New-CheckResult, Write-RequirementsReport

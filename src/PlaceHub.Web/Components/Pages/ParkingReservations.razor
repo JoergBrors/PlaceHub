@@ -1,0 +1,54 @@
+@page "/parkplatz-reservierungen"
+@inject ParkingService Parking
+@inject ParkingReservationService Reservations
+@inject BookingOptions Booking
+@inject CurrentActorContext ActorContext
+@inject Microsoft365Options Microsoft365Options
+@rendermode InteractiveServer
+<PageTitle>Parkplatz-Reservierungen · PlaceHub</PageTitle>
+<div class="page-heading"><div class="page-title"><span class="page-icon" aria-hidden="true">◷</span><div><h1>Parkplatz-Reservierungen</h1><p>Reservierungen laufen als Kalendereinladung an das Ressourcenpostfach. Erst die Antwort von Exchange bestätigt eine Reservierung.</p></div></div><StatusBadge Text="@(Open?"Buchung aktiv":"Buchung gesperrt")" /></div>
+@if(!Open){<div class="notice" role="status"><strong>Reservierungen sind nicht aktiviert.</strong>Das Anlegen und Stornieren erfordert die abgenommene Buchungssemantik (ADR-007) und die delegierte Berechtigung <code>Calendars.ReadWrite</code>. Beides ist nicht erteilt. Verfügbarkeit ist weiterhin unter „Parkplätze“ einsehbar; sie ist keine Reservierung.</div>}
+@if(ActorContext.DenialCode is not null){<div class="notice" role="alert"><strong>Kein Zugriff</strong>@ActorContext.DenialCode</div>}
+else{
+<section class="surface"><h2>Neue Reservierung</h2>
+ <EditForm Model="form" OnValidSubmit="RequestAsync"><div class="form-grid">
+  <label>Parkplatz<select @bind="form.SpaceId"><option value="">Bitte wählen</option>@foreach(var space in ActiveSpaces){<option value="@space.Id">@space.DisplayName</option>}</select></label>
+  <label>Beginn<input type="datetime-local" @bind="form.Start" /></label>
+  <label>Ende<input type="datetime-local" @bind="form.End" /></label>
+  <label>Zeitzone<select @bind="form.TimeZone"><option value="W. Europe Standard Time">Mitteleuropa</option><option value="UTC">UTC</option></select></label>
+ </div><button type="submit" disabled="@(!Open||busy)">Reservierung anfragen</button>
+ <p><small>Die Prüfung der Verfügbarkeit ist nur ein Hinweis. Die Reservierung bleibt „angefragt“, bis Exchange antwortet.</small></p></EditForm>
+ @if(message is not null){<p class="notice" role="status">@message</p>}
+</section>
+<div class="table-wrap"><table><thead><tr><th>Parkplatz</th><th>Zeitraum</th><th>Status</th><th>Sichere Diagnose</th><th>Aktion</th></tr></thead><tbody>
+@foreach(var r in Items){<tr><td><b>@SpaceName(r.SpaceId)</b><small>@r.LocationId</small></td><td>@r.Start.ToString("dd.MM.yyyy HH:mm") – @r.End.ToString("HH:mm") <small>@r.TimeZone</small></td><td><StatusBadge Text="@Label(r.State)" /></td><td><code>@r.OutcomeCode</code></td>
+ <td><button class="ghost" disabled="@busy" @onclick="()=>RefreshAsync(r)">Status aktualisieren</button>@if(r.State is ReservationState.Pending or ReservationState.Accepted or ReservationState.Unknown or ReservationState.RequiresReconciliation){<button class="danger-button" disabled="@(!Open||busy)" @onclick="()=>CancelAsync(r)">Stornieren</button>}</td></tr>}
+</tbody></table></div>
+@if(!Items.Any()){<div class="empty"><h2>Noch keine Reservierungen</h2></div>}
+}
+@code {
+ private bool busy; private string? message; private readonly FormModel form=new();
+ private bool Open=>Booking.WritesEnabled&&Booking.DelegatedWriteScopeApproved;
+ private IEnumerable<ParkingSpace> ActiveSpaces=>ActorContext.DenialCode is null?Parking.List(ActorContext.Current).Where(x=>x.Status==ParkingStatus.Active):[];
+ private IEnumerable<ParkingReservation> Items=>ActorContext.DenialCode is null?Reservations.List(ActorContext.Current):[];
+ private string SpaceName(Guid id)=>Parking.List(ActorContext.Current).FirstOrDefault(x=>x.Id==id)?.DisplayName??"Unbekannt";
+ private ReadAuthorizationContext Context(IEnumerable<string> mailboxes)=>ActorContext.CreateReadContext(Microsoft365Options,mailboxes);
+ private async Task RequestAsync()
+ {
+  await RunAsync(async()=>
+  {
+   if(!Guid.TryParse(form.SpaceId,out var spaceId))throw new ValidationException("PARKING_SPACE_REQUIRED");
+   var zone=BookingTimeZones.Find(form.TimeZone);
+   DateTimeOffset At(DateTime local){var unspecified=DateTime.SpecifyKind(local,DateTimeKind.Unspecified);return new DateTimeOffset(unspecified,zone.GetUtcOffset(unspecified));}
+   var space=Parking.Get(spaceId,ActorContext.Current);
+   var reservation=await Reservations.RequestAsync(ActorContext.Current,Context([space.MailboxAddress]),spaceId,At(form.Start),At(form.End),form.TimeZone,Guid.NewGuid().ToString("N"),CancellationToken.None);
+   return $"Reservierung {reservation.Id.ToString()[..8]} wurde angefragt. Sie gilt erst als bestätigt, wenn Exchange sie annimmt.";
+  });
+ }
+ private Task RefreshAsync(ParkingReservation r)=>RunAsync(async()=>{var updated=await Reservations.RefreshAsync(r.Id,ActorContext.Current,CancellationToken.None);return $"Status: {Label(updated.State)}.";});
+ private Task CancelAsync(ParkingReservation r)=>RunAsync(async()=>{var updated=await Reservations.CancelAsync(r.Id,ActorContext.Current,CancellationToken.None);return updated.State==ReservationState.Cancelled?"Die Reservierung wurde storniert.":$"Stornierung nicht bestätigt: {Label(updated.State)}.";});
+ private async Task RunAsync(Func<Task<string>> action){busy=true;try{message=await action();}catch(WorkflowException ex){message=Friendly(ex.Code);}catch(IntegrationException ex){message=Friendly(ex.Code);}finally{busy=false;}}
+ private static string Friendly(string code)=>code switch{"BOOKING_WRITES_NOT_ACTIVATED"=>"Reservierungen sind nicht aktiviert.","BOOKING_CONFLICT"=>"Der Zeitraum ist nicht verfügbar.","AVAILABILITY_UNKNOWN"=>"Die Verfügbarkeit konnte nicht bestimmt werden; es wurde nichts angefragt.","PARKING_SPACE_NOT_VERIFIED"=>"Dieser Parkplatz ist noch nicht verifiziert.","PARKING_SPACE_REQUIRED"=>"Bitte wählen Sie einen Parkplatz.","BOOKING_INTERVAL_INVALID"=>"Der Zeitraum ist ungültig oder zu lang.","BOOKING_START_OUT_OF_WINDOW"=>"Der Beginn liegt außerhalb des erlaubten Zeitfensters.","TIME_ZONE_NOT_ALLOWED" or "TIME_ZONE_OFFSET_MISMATCH"=>"Die Zeitzone ist nicht zulässig.","ONLY_THE_ORGANIZER_MAY_CANCEL"=>"Nur die buchende Person darf stornieren.","LOCATION_OUT_OF_SCOPE"=>"Für diesen Standort besteht keine Berechtigung.","BOOKING_NOT_AVAILABLE" or "DELEGATED_SCOPE_NOT_ALLOWED"=>"Die Buchung ist in dieser Umgebung nicht verfügbar.","BOOKING_PERMISSION_DENIED"=>"Es fehlt die Berechtigung für Kalenderänderungen.",_=>$"Nicht möglich ({code})."};
+ private static string Label(ReservationState s)=>s switch{ReservationState.Pending=>"Angefragt – wartet auf Exchange",ReservationState.Accepted=>"Von Exchange bestätigt",ReservationState.Declined=>"Von Exchange abgelehnt",ReservationState.Cancelled=>"Storniert",ReservationState.RequiresReconciliation=>"Abgleich erforderlich",_=>"Unbekannt"};
+ private sealed class FormModel{public string SpaceId{get;set;}="";public DateTime Start{get;set;}=DateTime.Now.Date.AddDays(1).AddHours(8);public DateTime End{get;set;}=DateTime.Now.Date.AddDays(1).AddHours(17);public string TimeZone{get;set;}="W. Europe Standard Time";}
+}

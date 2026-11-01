@@ -90,9 +90,21 @@ else
     builder.Services.AddHttpClient<IAvailabilityReader, GraphAvailabilityReader>(client => client.BaseAddress = new("https://graph.microsoft.com/v1.0/"));
 }
 builder.Services.AddSingleton<IAdministrationRepository, InMemoryAdministrationRepository>();
+builder.Services.AddSingleton<IParkingRepository, InMemoryParkingRepository>();
+builder.Services.AddSingleton<IReservationRepository, InMemoryReservationRepository>();
+// Booking writes stay closed until ADR-007 booking semantics and the delegated booking-write consent are approved.
+builder.Services.AddSingleton(new BookingOptions
+{
+    WritesEnabled = bool.TryParse(builder.Configuration["PlaceHub:Booking:WritesEnabled"], out var bookingWrites) && bookingWrites,
+    DelegatedWriteScopeApproved = bool.TryParse(builder.Configuration["PlaceHub:Booking:DelegatedWriteScopeApproved"], out var bookingScope) && bookingScope
+});
+if (microsoft365.Mode == IntegrationMode.OfflineMock) builder.Services.AddSingleton<IBookingGraphClient, UnavailableBookingGraphClient>();
+else builder.Services.AddHttpClient<IBookingGraphClient, GraphBookingClient>(client => client.BaseAddress = new("https://graph.microsoft.com/v1.0/"));
 if (microsoft365.Mode == IntegrationMode.OfflineMock) builder.Services.AddSingleton<IProvisioningWorker, OfflineMockProvisioningWorker>();
 else builder.Services.AddSingleton<IProvisioningWorker, DisabledProvisioningWorker>();
 builder.Services.AddSingleton<AdministrationService>();
+builder.Services.AddSingleton<ParkingService>();
+builder.Services.AddScoped<ParkingReservationService>();
 var app = builder.Build();
 if (!app.Environment.IsDevelopment()) app.UseExceptionHandler("/Error", createScopeForErrors: true);
 app.UseAuthentication();

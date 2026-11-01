@@ -1,7 +1,7 @@
 @inject CurrentActorContext ActorContext
-<div class="role"><span class="avatar">@Initials</span><span class="role-copy"><b>@Name</b><small>@RoleName</small></span><a class="ghost" href="/auth/signout">Abmelden</a></div>
+<div class="role"><span class="avatar">@Initials</span><span class="role-copy"><b>@Name</b><small>@RoleName</small></span><a class="ghost" href="/auth/signout">@L["role.signout"]</a></div>
 @code {
- private string Initials => ActorContext.DenialCode is not null ? "–" : ActorContext.Current.Role==PlaceHubRole.SystemAdministrator?"PA":ActorContext.Current.Role==PlaceHubRole.LocationManager?"LM":"OM";
- private string Name => ActorContext.Principal.Identity?.Name ?? "Angemeldeter Benutzer";
- private string RoleName => ActorContext.DenialCode is not null ? $"Kein Zugriff ({ActorContext.DenialCode})" : ActorContext.IsSynthetic ? "Synthetische Testrolle" : ActorContext.Current.Role.ToString();
+ private string Initials { get { if (ActorContext.DenialCode is not null) return "–"; var parts = Name.Split(new[]{' ','.','@'}, StringSplitOptions.RemoveEmptyEntries); return parts.Length >= 2 ? $"{parts[0][0]}{parts[^1][0]}".ToUpperInvariant() : parts.Length == 1 ? parts[0][..1].ToUpperInvariant() : "–"; } }
+ private string Name => ActorContext.Principal.Identity?.Name ?? L["role.user"];
+ private string RoleName => ActorContext.DenialCode is not null ? L.F("role.noaccess", ActorContext.DenialCode) : ActorContext.IsSynthetic ? L["role.synthetic"] : ActorContext.Current.Role.ToString();
 }

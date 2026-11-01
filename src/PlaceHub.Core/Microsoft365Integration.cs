@@ -108,7 +108,7 @@ public sealed class OfflinePlacesReader : IPlacesReader
             new(x.LocationId, null, PlaceType.Building, x.Building, null, null, "Synthetic", "OfflineMock", now),
             new($"{x.LocationId}-floor-{x.Floor}", x.LocationId, PlaceType.Floor, x.Floor, null, null, "Synthetic", "OfflineMock", now),
             new($"{x.LocationId}-section-{x.Section}", $"{x.LocationId}-floor-{x.Floor}", PlaceType.Section, x.Section, null, null, "Synthetic", "OfflineMock", now),
-            new(x.Id, $"{x.LocationId}-section-{x.Section}", PlaceType.Workspace, x.Name, x.Capacity, x.MailboxAlias, x.Status, "OfflineMock", now)
+            new(x.Id, $"{x.LocationId}-section-{x.Section}", PlaceType.Workspace, x.Name, x.Capacity, x.MailboxAlias + "@synthetic.invalid", x.Status, "OfflineMock", now)
         }).GroupBy(x => x.Id, StringComparer.Ordinal).Select(x => x.First()).ToArray();
         return Task.FromResult(new PlacesSnapshot(items, "OfflineMock", now));
     }

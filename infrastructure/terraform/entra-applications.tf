@@ -4,6 +4,7 @@ locals {
   approved_web_redirect_uris = [
     "https://localhost:3242/signin-oidc",
     "https://localhost:8443/signin-oidc",
+    "https://places.brors.date/signin-oidc"
   ]
 
   microsoft_graph_application_id = "00000003-0000-0000-c000-000000000000"

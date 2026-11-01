@@ -157,3 +157,24 @@ Graph v1.0 contract (Microsoft Learn): create `POST /me/events` (resource attend
 UI: `/parkplatz-verwaltung` (register an existing resource mailbox, category, accessibility and EV metadata, booking-policy and disable requests as typed approval-gated requests, business status mirrored from worker results only) and `/parkplatz-reservierungen` (request, status refresh from Exchange, cancel; writes are shown as **gesperrt** while `PlaceHub:Booking:WritesEnabled` and `PlaceHub:Booking:DelegatedWriteScopeApproved` are false, which is the default). The approvals page now shows Exchange and Places details. Business metadata is PlaceHub-owned and in-memory (development only); Exchange stays authoritative for availability and reservations. Raw Graph or PowerShell errors are never shown; known codes map to German messages.
 
 Central script additions: `CheckConsent`, `CheckWorkerIdentity`, `CheckParkingMailboxes`, `DiagnosePlacesHierarchy` (single pass through an existing Graph PowerShell session, GET-only URL allowlist, `-PlaceId` validated), `ValidateTerraform`, `PrepareTerraformPlan`, `PrepareRoleAssignments`, `PrepareParkingProvisioning`. None opens an Exchange or Graph session, none mutates a tenant. Tests: `tests/Test-Requirements.ps1`. Live behavior of the new pages is NOT_TESTED.
+
+## Live readiness review – evidence (2026-11-01, review session)
+
+| Check | Result | Status |
+|---|---|---|
+| Rendered UI review (Microsoft Edge via Playwright, `tests/ui/ui_review.py`, command `TestUi`) | 12 pages render with HTTP 200, no console errors and no failed requests in the synthetic profile; locked-gate notices, empty states and the reservation form lock verified; a form submits through the live Blazor circuit; invalid input shows a friendly message; the live profile redirects unauthenticated users to the Entra sign-in. Screenshots in `artifacts/ui-evidence` (git-ignored). **Authenticated live pages were not visually tested by this review** (a real sign-in cannot be automated); earlier owner screenshots show the dashboard, the denial states and the room query results. | VERIFIED_LOCALLY (synthetic) / NOT_TESTED (authenticated live) |
+| Existing Places hierarchy | Owner-run delegated reads: building `HomeOffice` (`id` = `placeId` = `e25ee6c6-…`), section `Links` (`139637d0-…`, parent `de9eccf8-…`), room `Home` (`id` `2da013c4-…`, `placeId` `1faf07ba-…`, parent = section). The floor `de9eccf8-…` is inferred, not read; typed lists for building, floor and section were empty while by-id reads succeeded. Effective location assignment (building id in `.env`) not yet confirmed by a rendered dashboard. This review had no Places-capable Graph session. | VERIFIED_IN_TENANT (building, section, room, by owner) / NOT_TESTED (floor, dashboard with direct resolution) |
+| Typed-collection inconsistency | INCONSISTENT_DIRECTORY_STATE; cause unproven (delay is only a hypothesis). | confirmed symptom, unproven cause |
+| Booking consent | Delegated `Calendars.ReadWrite` not declared, not consented; token provider refuses it; request prepared (`PrepareConsent`). | BLOCKED_APPROVAL |
+| Worker identity | distinct, no secret, no credential, no declarations, no grants. | VERIFIED_IN_TENANT |
+| Exchange RBAC and runner | not assigned / not implemented. | BLOCKED_APPROVAL |
+| Consolidated report | `Status`: 55 OK, 12 BLOCKED, 7 NOT_TESTED, 0 FAIL; `liveReadVerified` and `liveWriteVerified` remain false. | VERIFIED_LOCALLY |
+
+### Defects found by the rendered review and fixed
+
+1. **Blazor was never interactive in the containers:** `dotnet publish --no-restore` omitted `_framework/blazor.web.js` (404). Fixed in the Dockerfile; verified by a browser interaction test.
+2. **Containers were permanently unhealthy:** the Compose healthcheck called `wget`, which the image does not contain. `curl` is installed, a static regression test and `CheckDocker` health reporting were added.
+3. `/parkplaetze` and `/buchungskalender` crashed on a validation exception in the synthetic profile and the `/Error` page did not exist; both fixed. Synthetic mailbox addresses are now valid.
+4. `DockerBuild` ignored the synthetic profile and left a stale image; it now honors `-DockerProfile`.
+
+None of these was detectable by unit tests or route-response checks.

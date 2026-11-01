@@ -9,7 +9,10 @@ if ($app -notmatch '@Assets\["app\.css"\]') { throw 'UI_ASSET_FINGERPRINTING_MIS
 foreach ($token in @('--navy-900','--indigo-600','--success','--warning','--danger',':focus-visible','prefers-reduced-motion','max-width:820px')) { if ($css -notmatch [regex]::Escape($token)) { throw "UI_TOKEN_MISSING" } }
 foreach ($route in @('buchungskalender','schreibtischgruppen','parkplaetze','meine-auftraege','freigaben','diagnose','places-verwaltung','parkplatz-verwaltung','parkplatz-reservierungen')) { if ($nav -notmatch $route) { throw 'UI_ROUTE_MISSING' } }
 $myRequests = Get-Content (Join-Path $root 'src/PlaceHub.Web/Components/Pages/MyRequests.razor') -Raw
+# UI text lives in the localization files (reference keys); the source-language file counts as page content.
+$myRequests += Get-Content (Join-Path $root 'src/PlaceHub.Web/Localization/de.json') -Raw -Encoding utf8
 foreach ($control in @('Meine Aufträge','Wartet auf Worker','Timeline','ADR-017','LOCATION')) { if ($myRequests -notmatch [regex]::Escape($control)) { throw 'REQUEST_DASHBOARD_CONTROL_MISSING' } }
+$calendar += Get-Content (Join-Path $root 'src/PlaceHub.Web/Localization/de.json') -Raw -Encoding utf8
 foreach ($state in @('getSchedule','Microsoft365ReadOnly','Keine Buchungsmutation')) { if ($calendar -notmatch $state) { throw 'CALENDAR_LIVE_READ_CONTRACT_MISSING' } }
 if ($calendar -match 'synthetic\.invalid|Reserviert \(Mock\)') { throw 'CALENDAR_SYNTHETIC_RUNTIME_DATA_PRESENT' }
 if ($program -notmatch 'StaticWebAssetsLoader\.UseStaticWebAssets') { throw 'PRODUCTION_BUILD_STATIC_ASSETS_NOT_ENABLED' }

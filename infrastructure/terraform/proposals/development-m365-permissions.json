@@ -74,5 +74,44 @@
       "delegated Place.ReadWrite.All on the web application"
     ],
     "terraform": "No active declaration. Requires an ADR-016 policy amendment, exact plan classification and apply authorization; consent is a separate administrator action."
+  },
+  "booking_write_candidate": {
+    "status": "PROPOSED_NOT_GRANTED",
+    "applies_to": "placehub-frontend-development",
+    "graph_delegated_permission": {
+      "name": "Calendars.ReadWrite",
+      "id": "1ec239c2-d7c9-4623-a91a-a9775856bb36",
+      "type": "Scope",
+      "documented_admin_consent_required": false,
+      "effective_grant": "NOT_GRANTED"
+    },
+    "residual_risk": "Grants write access to all of the signed-in user's calendar events; no narrower delegated permission exists for creating events.",
+    "preconditions": [
+      "ADR-007 booking semantics accepted",
+      "ADR-006 mailbox model accepted",
+      "ADR-016 policy amendment, exact plan and apply authorization",
+      "token provider allowlist change reviewed",
+      "Project Owner and security approval of the residual risk"
+    ],
+    "not_requested": [
+      "Calendars.ReadWrite application role ef54d2bf-783f-4e0f-bca1-3210c0444d99",
+      "Calendars.ReadWrite.Shared"
+    ],
+    "terraform": "No active declaration."
+  },
+  "worker_exchange_prerequisites": {
+    "status": "PROPOSED_NOT_GRANTED",
+    "applies_to": "placehub-m365-provisioning-development",
+    "exchange_application_role": {
+      "resource_application_id": "00000002-0000-0ff1-ce00-000000000000",
+      "name": "Exchange.ManageAsApp",
+      "id": "dc50a0fb-09a3-484d-be87-e023b12c6440",
+      "type": "Role",
+      "effective_grant": "NOT_GRANTED"
+    },
+    "role_assignment_model": "Custom Exchange role group assigned to the registered service principal (New-ServicePrincipal, Add-RoleGroupMember) with only the cmdlets and parameters of the fixed allowlist; Entra roles such as Exchange Administrator cannot be customized or scoped and are not proposed.",
+    "certificate": "CSP-based RSA certificate (CNG certificates are not supported for Exchange app-only authentication); separate from the web certificate.",
+    "recipient_write_scope_limit": "A write scope cannot constrain a mailbox that does not exist yet, so organization-wide New-Mailbox capability is the residual risk of automatic creation.",
+    "terraform": "No active declaration."
   }
 }

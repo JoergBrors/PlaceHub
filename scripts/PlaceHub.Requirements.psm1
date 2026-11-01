@@ -13,7 +13,7 @@ $script:ExitCodes = [ordered]@{
 }
 
 $script:ActionClasses = @('READ_ONLY', 'LOCAL_MUTATION', 'TENANT_MUTATION', 'PRIVILEGED_MUTATION', 'DESTRUCTIVE')
-$script:ToolAllowlist = @('az', 'gh', 'git', 'docker', 'terraform', 'dotnet', 'pwsh')
+$script:ToolAllowlist = @('az', 'gh', 'git', 'docker', 'terraform', 'dotnet', 'pwsh', 'python')
 
 function Get-RequirementsExitCodes { $script:ExitCodes }
 function Get-RequirementsActionClasses { $script:ActionClasses }

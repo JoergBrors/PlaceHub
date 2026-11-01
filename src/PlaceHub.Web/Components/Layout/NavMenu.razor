@@ -1,8 +1,8 @@
 @inject CurrentActorContext ActorContext
-<nav aria-label="Hauptnavigation">
+<nav aria-label="@(L["nav.main"])">
 @foreach (var group in VisibleItems.GroupBy(x => x.Group)) {
-  <span class="nav-group">@group.Key</span>
-  @foreach (var item in group) { <NavLink href="@item.Url" Match="@(item.Url == "" ? NavLinkMatch.All : NavLinkMatch.Prefix)"><span aria-hidden="true">@item.Icon</span>@item.Label</NavLink> }
+  <span class="nav-group">@L.Src(group.Key)</span>
+  @foreach (var item in group) { <NavLink href="@item.Url" Match="@(item.Url == "" ? NavLinkMatch.All : NavLinkMatch.Prefix)"><span aria-hidden="true">@item.Icon</span>@L.Src(item.Label)</NavLink> }
 }
 </nav>
 @code {
@@ -10,6 +10,6 @@
  private IEnumerable<NavItem> VisibleItems => Items.Where(x=>!x.AdminOnly || (ActorContext.DenialCode is null && ActorContext.Current.Role==PlaceHubRole.SystemAdministrator));
  private static readonly NavItem[] Items = [
     new("Arbeitsplatz","","⌂","Dashboard"),new("Arbeitsplatz","buchungskalender","▦","Buchungskalender"),new("Arbeitsplatz","places-verwaltung","▤","Places-Verwaltung"),new("Arbeitsplatz","gebaeude","▥","Gebäude"),new("Arbeitsplatz","etagen","≡","Etagen & Bereiche"),new("Arbeitsplatz","schreibtische","▱","Schreibtische"),
-    new("Arbeitsplatz","schreibtischgruppen","♧","Schreibtischgruppen"),new("Arbeitsplatz","parkplaetze","P","Parkplätze"),new("Arbeitsplatz","parkplatz-verwaltung","P","Parkplatz-Verwaltung"),new("Arbeitsplatz","parkplatz-reservierungen","◷","Parkplatz-Reservierungen"),new("Betrieb","meine-auftraege","☷","Meine Aufträge"),new("Betrieb","reservierungen","◷","Reservierungen"),new("Betrieb","besucher","♙","Besucher"),
-    new("Administration","freigaben","✓","Freigaben",true),new("Administration","provisionierung","↻","Provisionierungsaufträge",true),new("Administration","administration","⚙","Administration",true),new("Administration","diagnose","◇","Integration & Diagnose",true)];
+    new("Arbeitsplatz","schreibtischgruppen","♧","Schreibtischgruppen"),new("Arbeitsplatz","parkplaetze","P","Parkplätze"),new("Arbeitsplatz","parkplatz-verwaltung","P","Parkplatz-Verwaltung"),new("Arbeitsplatz","parkplatz-reservierungen","◷","Parkplatz-Reservierungen"),new("Betrieb","meine-auftraege","☷","Aufgaben"),new("Betrieb","reservierungen","◷","Reservierungen"),new("Betrieb","besucher","♙","Besucher"),
+    new("Betrieb","freigaben","✓","Freigaben",true),new("Betrieb","provisionierung","↻","Provisionierungsaufträge",true),new("Administration","administration","⚙","Administration",true),new("Administration","diagnose","◇","Integration & Diagnose",true)];
 }

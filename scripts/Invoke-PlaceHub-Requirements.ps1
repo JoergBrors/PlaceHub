@@ -246,6 +246,12 @@ function Check-Docker {
     $c = Invoke-Tool -File docker -Arguments @('compose', '-f', 'compose.yaml', 'config', '-q') -WorkingDirectory $root
     Res 'docker.composeConfig' $(if ($c.ExitCode -eq 0) { 'OK' } else { 'FAIL' }) $(if ($c.ExitCode -eq 0) { 'compose.yaml resolves' } else { 'compose.yaml does not resolve (variables missing?)' })
     $ps = Invoke-Tool -File docker -Arguments @('compose', 'ps', '--format', '{{.Service}}:{{.State}}') -WorkingDirectory $root
+    $h = Invoke-Tool -File docker -Arguments @('ps', '--filter', 'name=placehub', '--format', '{{.Names}}={{.Status}}') -WorkingDirectory $root
+    foreach ($line in @($h.Output -split "`n" | Where-Object { $_ })) {
+        $name = ($line -split '=', 2)[0]; $state = ($line -split '=', 2)[1]
+        $status = if ($state -match 'unhealthy') { 'FAIL' } elseif ($state -match 'healthy') { 'OK' } else { 'WARN' }
+        Res "docker.health.$name" $status ($state -replace '\d+ (seconds?|minutes?|hours?)', 'n units')
+    }
     Res 'docker.containers' 'INFO' $(if ($ps.Output.Trim()) { $ps.Output.Trim() -replace "`n", ', ' } else { 'no containers running' })
 }
 
@@ -265,10 +271,23 @@ function Do-TestSecurity {
 function Do-TestArchitecture { Do-PsTests 'architecture' @('Test-Static.ps1', 'Test-UIStatic.ps1', 'Test-Microsoft365Readiness.ps1', 'Test-ProvisioningMock.ps1'); $o = Invoke-Tool -File dotnet -Arguments @('test', 'PlaceHub.slnx', '-c', 'Release', '--nologo', '--filter', 'FullyQualifiedName~FourEyes|FullyQualifiedName~PlacesProvisioning|FullyQualifiedName~AdministrationWorkflow') -WorkingDirectory $root; Res 'architecture.workflowAndFourEyes' $(if ($o.ExitCode -eq 0) { 'OK' } else { 'FAIL' }) (($o.Output -split "`n" | Select-Object -Last 1)) }
 function Do-TestTerraformPolicy { Do-PsTests 'terraformPolicy' @('Test-TerraformPlanClassifier.ps1', 'Test-Microsoft365PermissionProposal.ps1') }
 function Do-ValidateCompose { Do-PsTests 'compose' @('Test-DockerCompose.ps1') }
-function Do-DockerBuild { Run-Step 'docker.build' { Invoke-Tool -File docker -Arguments @('compose', 'build') -WorkingDirectory $root } }
+function Do-DockerBuild { $a = Get-ComposeArguments; Run-Step "docker.build.$DockerProfile" { Invoke-Tool -File docker -Arguments ($a + @('build')) -WorkingDirectory $root } }
 function Get-ComposeArguments { if ($DockerProfile -eq 'Synthetic') { @('compose', '-p', 'placehub-synthetic', '-f', 'compose.yaml', '-f', 'compose.synthetic-test.yaml') } else { @('compose', '-f', 'compose.yaml') } }
 function Do-DockerUp { $a = Get-ComposeArguments; Run-Step "docker.up.$DockerProfile" { Invoke-Tool -File docker -Arguments ($a + @('up', '-d')) -WorkingDirectory $root } }
 function Do-DockerDown { $a = Get-ComposeArguments; Run-Step "docker.down.$DockerProfile" { Invoke-Tool -File docker -Arguments ($a + @('down')) -WorkingDirectory $root } }
+
+function Do-TestUi {
+    # Renders every page in Microsoft Edge (Playwright) against the synthetic profile and checks the unauthenticated live redirect.
+    # Authenticated live pages need a real Entra sign-in and are NOT covered; they must be reviewed by a person.
+    $py = Invoke-Tool -File python -Arguments @('-c', 'import playwright') -WorkingDirectory $root
+    if (-not $py.Found -or $py.ExitCode -ne 0) { return Res 'ui.rendered' 'NOT_TESTED' 'python with Playwright is not available' 'pip install playwright (Microsoft Edge is used; no browser download)' }
+    $health = Invoke-Tool -File docker -Arguments @('ps', '--filter', 'name=placehub-synthetic-placehub-web', '--format', '{{.Status}}') -WorkingDirectory $root
+    if ($health.Output -notmatch 'Up') { return Res 'ui.rendered' 'BLOCKED' 'the synthetic profile is not running' 'Run DockerBuild and DockerUp with -DockerProfile Synthetic, and keep the live profile up for the redirect check' }
+    $out = Join-Path $ReportDirectory 'ui-evidence'
+    $r = Invoke-Tool -File python -Arguments @((Join-Path $root 'tests/ui/ui_review.py'), '--out', $out) -WorkingDirectory (Join-Path $root 'tests/ui')
+    $last = ($r.Output -split "`n" | Where-Object { $_ } | Select-Object -Last 1)
+    Res 'ui.rendered' $(if ($r.ExitCode -eq 0) { 'OK' } else { 'FAIL' }) "$last (screenshots and ui-review.json in $out; synthetic profile only)" 'Authenticated live pages require a manual or credentialed review'
+}
 
 function Do-TerraformPlan {
     if ($Environment -ne 'development') { Stop-Requirements -Exit SECURITY_BLOCKED -Message 'ENVIRONMENT_NOT_AUTHORIZED' }
@@ -296,7 +315,19 @@ function Prepare-Consent {
 "@
     New-Item -ItemType Directory -Path $ReportDirectory -Force | Out-Null
     $p = Join-Path $ReportDirectory 'consent-request.md'; Protect-Text $text | Set-Content -LiteralPath $p -Encoding utf8NoBOM
-    Res 'prepare.consent' 'OK' "written to $p" 'Administrator approval and action'
+    $booking = @"
+# Booking write consent request (NOT EXECUTED, NOT AUTHORIZED)
+
+- Application: $FrontendName ($(if ($f.Ok) { Hide-Id $f.App.appId } else { 'id unavailable' }))
+- Permission: Microsoft Graph delegated Calendars.ReadWrite (1ec239c2-d7c9-4623-a91a-a9775856bb36). Microsoft documents AdminConsentRequired = No; the tenant consent policy decides whether users may consent, so a tenant-wide administrator consent is requested for consistency with the read scopes.
+- Used for: creating, reading back and cancelling the signed-in organizer's own resource-booking events (POST /me/events, GET /me/events/{id}, POST /me/events/{id}/cancel). Fixed request bodies only.
+- Residual risk: Calendars.ReadWrite grants write access to ALL of the signed-in user's calendar events. No narrower delegated permission exists for creating events. Mitigations: fixed typed bodies, organizer-only cancel, no arbitrary Graph URLs, tests, closed application gates.
+- Preconditions (none met): ADR-007 booking semantics accepted; ADR-006 mailbox model accepted; Terraform declaration of the scope through the ADR-016 workflow (policy amendment, plan, apply); allowlist change in the web token provider.
+- Not requested: any application permission (Calendars.ReadWrite application role ef54d2bf-... is NOT part of this request), Calendars.ReadWrite.Shared, Place.ReadWrite.All on the web application.
+- Evidence after consent: oauth2PermissionGrants scope list (CheckBooking).
+"@
+    $pb = Join-Path $ReportDirectory 'consent-request-booking.md'; Protect-Text $booking | Set-Content -LiteralPath $pb -Encoding utf8NoBOM
+    Res 'prepare.consent' 'OK' "written to $p and $pb" 'Administrator approval and action (nothing was granted)'
 }
 function Prepare-RoleAssignment {
     $m = Get-Content -LiteralPath (Join-Path $root 'infrastructure/terraform/proposals/development-app-role-assignments.json') -Raw | ConvertFrom-Json
@@ -345,6 +376,25 @@ function Check-WorkerIdentity {
     $compose = Get-Content -LiteralPath (Join-Path $root 'compose.yaml') -Raw
     Res 'worker.disabled' $(if ($compose -match 'Worker__Enabled:\s*"false"') { 'OK' } else { 'FAIL' }) 'worker disabled by default in Compose'
     Res 'worker.rbac' 'NOT_TESTED' 'Exchange RBAC for Applications (TenantPlacesManagement, MailRecipient) is not assigned and its assignability is unproven' 'Security review; never granted by this script'
+}
+
+function Check-Booking {
+    $auth = Get-Content -LiteralPath (Join-Path $root 'src/PlaceHub.Web/Microsoft365Authentication.cs') -Raw
+    $program = Get-Content -LiteralPath (Join-Path $root 'src/PlaceHub.Web/Program.cs') -Raw
+    $compose = Get-Content -LiteralPath (Join-Path $root 'compose.yaml') -Raw
+    Res 'booking.tokenProviderRefusesWrite' $(if ($auth -notmatch 'Calendars\.ReadWrite') { 'OK' } else { 'FAIL' }) 'the web token provider allowlist does not contain Calendars.ReadWrite'
+    Res 'booking.gatesClosedByDefault' $(if (($program -match 'PlaceHub:Booking:WritesEnabled') -and ($compose -notmatch 'Booking:WritesEnabled:\s*"?true') -and ($compose -notmatch 'Booking__WritesEnabled:\s*"?true')) { 'OK' } else { 'FAIL' }) 'booking writes and delegated-scope approval default to false and Compose does not enable them'
+    $f = Get-App $FrontendName
+    if ($f.Ok) {
+        $declared = @($f.App.requiredResourceAccess | Where-Object resourceAppId -eq $GraphAppId | ForEach-Object { $_.resourceAccess } | ForEach-Object { $_.id })
+        Res 'booking.writeScopeDeclared' $(if ($declared -notcontains '1ec239c2-d7c9-4623-a91a-a9775856bb36') { 'OK' } else { 'WARN' }) $(if ($declared -notcontains '1ec239c2-d7c9-4623-a91a-a9775856bb36') { 'delegated Calendars.ReadWrite is not declared on the web application' } else { 'delegated Calendars.ReadWrite is declared' })
+        $sp = Get-Sp $f.App.appId
+        if ($sp) {
+            $g = Invoke-GraphGet "https://graph.microsoft.com/v1.0/oauth2PermissionGrants?`$filter=clientId eq '$($sp.id)'"
+            if ($g.Ok) { $scopes = @($g.Data.value | ForEach-Object { ($_.scope -split ' ') | Where-Object { $_ } }); Res 'booking.writeScopeConsent' $(if ($scopes -notcontains 'Calendars.ReadWrite') { 'BLOCKED' } else { 'OK' }) $(if ($scopes -notcontains 'Calendars.ReadWrite') { 'Calendars.ReadWrite is not consented, so no booking write can succeed' } else { 'Calendars.ReadWrite is consented' }) $(if ($scopes -notcontains 'Calendars.ReadWrite') { 'ADR-007 acceptance, then consent (see PrepareConsent)' } else { '' }) }
+        }
+    }
+    Res 'booking.exchangeAcceptance' 'NOT_TESTED' 'resource acceptance, decline and conflict handling were verified with synthetic responses only' 'A real, approved development booking with read-back'
 }
 
 function Check-ParkingMailboxes {
@@ -400,7 +450,7 @@ function Prepare-TerraformPlan { Res 'prepare.terraformPlan' 'INFO' 'run the Ter
 $script:Collected = [System.Collections.Generic.List[object]]::new()
 function Add-Results { param($Items) foreach ($i in @($Items)) { if ($null -ne $i) { $script:Collected.Add($i) } } }
 function Run-Status {
-    foreach ($fn in 'Check-Prerequisites', 'Check-AzureLogin', 'Check-Tenant', 'Check-GitHubAuth', 'Check-Repository', 'Check-ADRs', 'Check-EntraApplications', 'Check-AppRoles', 'Check-GraphPermissions', 'Check-ConsentStatus', 'Check-PlacesInventory', 'Check-ExchangeResources', 'Check-Certificates', 'Check-KeyVaultBoundary', 'Check-Terraform', 'Check-Docker') {
+    foreach ($fn in 'Check-Prerequisites', 'Check-AzureLogin', 'Check-Tenant', 'Check-GitHubAuth', 'Check-Repository', 'Check-ADRs', 'Check-EntraApplications', 'Check-AppRoles', 'Check-GraphPermissions', 'Check-ConsentStatus', 'Check-PlacesInventory', 'Check-ExchangeResources', 'Check-Certificates', 'Check-KeyVaultBoundary', 'Check-WorkerIdentity', 'Check-ParkingMailboxes', 'Check-Booking', 'Check-Terraform', 'Check-Docker') {
         try { Add-Results (& $fn) } catch { if ($_.Exception.PSObject.Properties['ExitName']) { Add-Results (Res $fn 'FAIL' $_.Exception.Message) } else { Add-Results (Res $fn 'FAIL' 'check failed unexpectedly') } }
     }
     Add-Results (Verify-LiveRead); Add-Results (Verify-LiveWrite)
@@ -432,12 +482,14 @@ $Commands = [ordered]@{
     TestSecurity = @{ Class = 'READ_ONLY'; Info = 'Static security tests and tracked-file secret scan'; Run = { Add-Results (Do-TestSecurity) } }
     TestArchitecture = @{ Class = 'READ_ONLY'; Info = 'Architecture, readiness, workflow and four-eyes tests'; Run = { Add-Results (Do-TestArchitecture) } }
     TestTerraformPolicy = @{ Class = 'READ_ONLY'; Info = 'Plan classifier and permission proposal tests'; Run = { Add-Results (Do-TestTerraformPolicy) } }
+    TestUi = @{ Class = 'LOCAL_MUTATION'; Info = 'Render all pages in Edge against the synthetic profile and write screenshots (artifacts/ui-evidence)'; Run = { Add-Results (Do-TestUi) } }
     ValidateCompose = @{ Class = 'READ_ONLY'; Info = 'Compose static checks'; Run = { Add-Results (Do-ValidateCompose) } }
     DockerBuild = @{ Class = 'LOCAL_MUTATION'; Info = 'docker compose build'; Run = { Add-Results (Do-DockerBuild) } }
     DockerUp = @{ Class = 'LOCAL_MUTATION'; Info = 'docker compose up -d (-DockerProfile Live|Synthetic)'; Run = { Add-Results (Do-DockerUp) } }
     DockerDown = @{ Class = 'LOCAL_MUTATION'; Info = 'docker compose down'; Run = { Add-Results (Do-DockerDown) } }
     CheckConsent = @{ Class = 'READ_ONLY'; Info = 'Alias of CheckConsentStatus'; Run = { Add-Results (Check-ConsentStatus) } }
     CheckWorkerIdentity = @{ Class = 'READ_ONLY'; Info = 'Worker identity separation, credentials, effective grants'; Run = { Add-Results (Check-WorkerIdentity) } }
+    CheckBooking = @{ Class = 'READ_ONLY'; Info = 'Booking gates, delegated write scope declaration and consent'; Run = { Add-Results (Check-Booking) } }
     CheckParkingMailboxes = @{ Class = 'READ_ONLY'; Info = 'Parking mailbox gates (never opens an Exchange session)'; Run = { Add-Results (Check-ParkingMailboxes) } }
     DiagnosePlacesHierarchy = @{ Class = 'READ_ONLY'; Info = 'Single-pass Places diagnosis through an existing Microsoft Graph PowerShell session (-PlaceId optional)'; Run = { Add-Results (Diagnose-PlacesHierarchy) } }
     ValidateTerraform = @{ Class = 'READ_ONLY'; Info = 'Alias of CheckTerraform'; Run = { Add-Results (Check-Terraform) } }

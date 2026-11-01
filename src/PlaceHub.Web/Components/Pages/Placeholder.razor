@@ -7,16 +7,16 @@
 @inject CurrentActorContext ActorContext
 @inject Microsoft365Options Microsoft365Options
 @rendermode InteractiveServer
-<div class="page-heading"><div class="page-title"><span class="page-icon">@Icon</span><div><h1>@Title</h1><p>@Description</p></div></div></div>
+<div class="page-heading"><div class="page-title"><span class="page-icon">@Icon</span><div><h1>@L.Src(Title)</h1><p>@Description</p></div></div></div>
 @if(IsPlacesPage){
- @if(error is not null){<div class="notice" role="alert"><strong>Graph-Lesen fehlgeschlagen</strong>@error. Keine synthetischen Daten werden angezeigt.</div>}
- else if(loading){<div class="notice" role="status"><strong>Microsoft Graph wird gelesen</strong></div>}
- else{<div class="notice" role="status"><strong>Datenquelle: @source</strong>@items.Count autorisierte Einträge.</div><div class="table-wrap"><table><thead><tr><th>Name</th><th>Typ</th><th>Übergeordnet</th><th>Kapazität</th><th>Mailbox</th></tr></thead><tbody>@foreach(var item in items){<tr><td><b>@item.DisplayName</b><small>@item.Id</small></td><td>@item.Type</td><td>@(item.ParentId??"–")</td><td>@(item.Capacity?.ToString()??"–")</td><td>@(item.EmailAddress??"–")</td></tr>}</tbody></table></div>}
-}else{<div class="notice" role="status"><strong>Kein freigegebener Live-Port</strong>Für diesen Bereich ist in der aktuellen read-only Aktivierung kein Microsoft-Graph-Datenvertrag freigegeben. Es werden keine Mock-Daten angezeigt.</div>}
+ @if(error is not null){<div class="notice" role="alert"><strong>@L["ph.failed"]</strong>@error. @L["ph.nosynth"]</div>}
+ else if(loading){<div class="notice" role="status"><strong>@L["common.graphreading"]</strong></div>}
+ else{<div class="notice" role="status"><strong>@L["common.source"] @source</strong>@L.F("ph.entries", items.Count)</div><div class="table-wrap"><table><thead><tr><th>@L["th.name"]</th><th>@L["th.type"]</th><th>@L["th.parent"]</th><th>@L["th.capacity"]</th><th>@L["th.mailbox2"]</th></tr></thead><tbody>@foreach(var item in items){<tr><td><b>@item.DisplayName</b><small>@item.Id</small></td><td>@item.Type</td><td>@(item.ParentId??"–")</td><td>@(item.Capacity?.ToString()??"–")</td><td>@(item.EmailAddress??"–")</td></tr>}</tbody></table></div>}
+}else{<div class="notice" role="status"><strong>@L["ph.noport.title"]</strong>@L["ph.noport.text"]</div>}
 @code {
  private string Segment=>NavigationManager.Uri.Split('/').Last(); private bool IsPlacesPage=>Segment is "gebaeude" or "etagen" or "schreibtische"; private bool loading=true; private string? error,source; private IReadOnlyList<PlaceRecord> items=[];
  private string Title=>Segment switch{"gebaeude"=>"Gebäude","etagen"=>"Etagen & Bereiche","schreibtische"=>"Schreibtische","reservierungen"=>"Reservierungen","besucher"=>"Besucher",_=>"PlaceHub"};
- private string Description=>IsPlacesPage?"Autorisierte Microsoft-Graph-Places-Daten.":"Noch nicht Bestandteil der freigegebenen read-only Schnittstellen.";
+ private string Description=>IsPlacesPage?L["ph.desc.places"]:L["ph.desc.none"];
  private string Icon=>Segment switch{"gebaeude"=>"▥","etagen"=>"≡","schreibtische"=>"▱","reservierungen"=>"◷","besucher"=>"♙",_=>"◆"};
  [Inject] private NavigationManager NavigationManager{get;set;}=default!;
  protected override async Task OnInitializedAsync(){if(!IsPlacesPage){loading=false;return;}try{var snapshot=await PlacesReader.ReadHierarchyAsync(ActorContext.CreateReadContext(Microsoft365Options),CancellationToken.None);source=snapshot.DataSource;var type=Segment=="gebaeude"?PlaceType.Building:Segment=="schreibtische"?PlaceType.Desk:(PlaceType?)null;items=snapshot.Places.Where(x=>type is null?x.Type is PlaceType.Floor or PlaceType.Section:x.Type==type).ToArray();}catch(IntegrationException ex){error=ex.Code;}finally{loading=false;}}

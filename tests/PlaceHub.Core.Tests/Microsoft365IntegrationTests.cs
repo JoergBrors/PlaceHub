@@ -92,6 +92,16 @@ public sealed class Microsoft365IntegrationTests
         Assert.True(gets<=40);
     }
 
+    [Fact] public async Task SyntheticWorkspaceMailboxesAreValidForTheOfflineAvailabilityAdapter()
+    {
+        var snapshot=await new OfflinePlacesReader().ReadHierarchyAsync(new("t","s",PlaceHubRole.OfficeManager,new HashSet<string>{"BER"},new HashSet<string>(),new HashSet<string>(),true),default);
+        var mailboxes=snapshot.Places.Where(x=>x.Type==PlaceType.Workspace).Select(x=>x.EmailAddress!).ToArray();
+        Assert.NotEmpty(mailboxes);Assert.All(mailboxes,m=>Assert.EndsWith("@synthetic.invalid",m));
+        var now=DateTimeOffset.UtcNow;
+        var result=await new OfflineAvailabilityReader().ReadAsync(new("BER",mailboxes,now,now.AddHours(1),"UTC"),LiveAuth(),default);
+        Assert.Equal(mailboxes.Length,result.Count);
+    }
+
     [Fact] public async Task GraphPlacesTranslatesForbidden()
     { var reader=new GraphPlacesReader(Client(new StubHandler(_=>new(HttpStatusCode.Forbidden))),new FixedTokenProvider(),LiveOptions);var ex=await Assert.ThrowsAsync<IntegrationException>(()=>reader.ReadHierarchyAsync(LiveAuth(),default));Assert.Equal("GRAPH_PERMISSION_DENIED",ex.Code); }
 

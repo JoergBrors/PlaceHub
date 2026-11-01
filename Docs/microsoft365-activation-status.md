@@ -95,3 +95,45 @@ ADR classification: Existing ADR Applies (ADR-004/005/007/009/016); the credenti
 | Consent policy read (`authorizationPolicy`) | read-only | User consent policies assigned: `microsoft-user-default-recommended`, `-allow-consent-apps`. Whether `Calendars.ReadBasic` qualifies as low-impact under them is not established; `Place.Read.All` is Admin-only regardless. Consent-request policy not readable with this identity (403). |
 
 Live validation (OIDC, `scp`, Places, `getSchedule`, negative cases) remains NOT_TESTED.
+
+## Identity, location and credential package (2026-11-01, third session) {#identity-location-credential-package}
+
+Project Owner selections authorize preparation and read-only discovery only. Nothing below was applied.
+
+### Read-only tenant evidence
+
+| Check | Result |
+|---|---|
+| Tenant | `db88f9b6…` matches `.env` – VERIFIED_IN_TENANT |
+| Test user | `joerg@brors.net`, Member, enabled; Object ID `d085818d-dc3f-4c0c-8b3d-970ad5477bf6` resolved via Graph `users` lookup and confirmed by `signed-in-user` (not inferred from the name) |
+| Enterprise app | SP `bac9ef95…`, client ID `0f8f167f…`, `appRoleAssignmentRequired=true` |
+| Role `PlaceHub.SystemAdministrator` | `9a3f940c-08c4-4bd7-8cfa-106eaab349a5`, `allowedMemberTypes=User`, enabled |
+| Current assignments | none (re-verified earlier this day; unchanged) |
+| Building discovery | **BUILDING_DISCOVERY_BLOCKED_PERMISSION**: Azure CLI Graph token is rejected (401) by `/places/microsoft.graph.building`. The CLI session is not the PlaceHub app and proves nothing about its grants. Unblock: after admin consent for `Place.Read.All`, sign in once as the user and read the Dashboard, or an administrator with Places read lists buildings and supplies the `placeId`. |
+| Tenant consent policy | `authorizationPolicy` readable: user-consent policies `microsoft-user-default-recommended` and `-allow-consent-apps`. Low-impact status of `Calendars.ReadBasic` under them is not established; consent-request policy returned 403 → **TENANT_CONSENT_POLICY_NOT_VERIFIED** |
+
+### Prepared (not applied)
+
+- Role assignment: `proposed_assignments[0]` in `infrastructure/terraform/proposals/development-app-role-assignments.json` (user → `PlaceHub.SystemAdministrator`, create). `effective_assignment_authorized=false`. An assignment does not grant a location.
+- Location assignment: key `PlaceHub:LocationAssignments:d085818d-…` (set through `PLACEHUB_USER_OBJECT_ID` / `PLACEHUB_LOCATION_PLACE_ID` in the git-ignored `.env`) stays **unset** until the Owner picks a building `placeId`. Code denies a user without a location (`LOCATION_ASSIGNMENT_MISSING`); `SystemAdministrator` is an application role only and never implies tenant-wide access.
+- Consent request: delegated `Place.Read.All` (Admin) for `placehub-frontend-development` only; no `Calendars.ReadWrite`, no application permissions.
+
+### Web certificate review (script `scripts/Initialize-LocalEntraCertificate.ps1`, NOT executed)
+
+RSA 3072, SHA-256, EKU clientAuth, CN `PlaceHub Development Web Authentication`, 180 days, PFX with empty password (acceptable only for a local read-only bind mount; the file ACL is the protection), `.cer` exported separately. The script now also restricts the PFX ACL to the current user on Windows (previously only `chmod` on Linux). .NET loads the PFX on Linux; the web container has no Key Vault access and the worker certificate is not reused. Rotation: regenerate ≥30 days before expiry, register the new `.cer`, then remove the old one. Runbook: generate → verify thumbprint/expiry → administrator registers `.cer` only → set `Microsoft365__ClientCertificates` path → restart web.
+
+### ADR-016 credential ownership assessment
+
+- Policy and classifier require **no** `key_credentials` on the web app; Terraform governance forbids certificate resources in the allowlist.
+- A. Terraform-managed public certificate (`azuread_application_certificate`): auditable, but needs allowlist, policy and classifier changes and an ADR-016 amendment. Rejected for now.
+- B. **Recommended:** administrator registers the public `.cer` outside Terraform. `azuread_application` does not reconcile credentials added this way, so no destructive plan is expected, but this must be proven: run `operation=plan` immediately after registration and confirm `NO_CHANGE` (the classifier's `key_credentials` check could otherwise trip on a computed attribute). Consequences: manual rotation with a recorded owner and expiry alert; credential is invisible to Terraform state.
+- C. No documented alternative exists in the repository.
+- Status: **ADR Review Required** (record approach B and the post-registration plan check in ADR-016; no policy change made). Registration is BLOCKED_APPROVAL.
+
+### Personal-data classification
+
+ADR-010 accepts SQLite for synthetic data only. The location mapping lives in configuration (`.env`), not SQLite, so nothing real is persisted in the database. Storing a real user Object ID in any database or tracked file needs **ADR Review Required** (ADR-009/010); the Object ID above is recorded here and in the proposal manifest as non-secret evidence only.
+
+### Final checklist
+
+User/OID verified; role verified; assignment PREPARED_NOT_APPLIED; building PENDING_OWNER_SELECTION; location PREPARED_NOT_APPLIED; certificate NOT_EXECUTED; registration BLOCKED_APPROVAL; plan NOT_TESTED (PR #1 unmerged; mergeable and clean, no required checks or reviews); apply NOT_EXECUTED; consent NOT_GRANTED; login, Places, `getSchedule` NOT_TESTED.

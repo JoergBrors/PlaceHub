@@ -36,6 +36,11 @@ try {
     finally { $certificate.Dispose() }
 }
 finally { $rsa.Dispose() }
-if (-not $IsWindows) { & chmod 600 $privatePath; if ($LASTEXITCODE -ne 0) { throw 'ENTRA_CLIENT_CERTIFICATE_PERMISSION_FAILED' } }
+if ($IsWindows) {
+    # Private key readable only by the current user; inherited ACEs removed.
+    & icacls $privatePath /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'ENTRA_CLIENT_CERTIFICATE_PERMISSION_FAILED' }
+}
+else { & chmod 600 $privatePath; if ($LASTEXITCODE -ne 0) { throw 'ENTRA_CLIENT_CERTIFICATE_PERMISSION_FAILED' } }
 'ENTRA_CLIENT_CERTIFICATE_READY'
 'ENTRA_PUBLIC_CERTIFICATE_REGISTRATION_REQUIRED'

@@ -52,3 +52,18 @@ SQLite file access becomes security-sensitive. Claims require transactional test
 - ADR-001, ADR-009, ADR-010, ADR-012, ADR-014 and proposed ADR-015.
 - `../exchange-provisioning-architecture.md`
 - `../ui-driven-resource-administration.md`
+
+## Proposed amendment: mandatory requester/approver separation (2026-11-01)
+
+**Status: PROPOSED – not Accepted.** The behavior is implemented in code and tested, but it tightens the accepted PoC workflow (a single SystemAdministrator could previously create, approve and run a request), so Project Owner acceptance of this text is required.
+
+Invariants for every privileged request kind and operation (Create, Update, ChangeCapacity, ChangeBookingPolicy, Disable, Reconcile, BootstrapBuilding and Places hierarchy writes):
+
+1. Requester and approver are different immutable identities (`SELF_APPROVAL_DENIED`; identifier comparison is case-insensitive).
+2. An unknown or empty identity fails closed (`IDENTITY_UNKNOWN`) for create, edit, approve and start.
+3. Approval binds the exact request version and a SHA-256 digest of the typed payload; an edit clears the approval and only the requester may edit (`EDIT_OWNER_ONLY`).
+4. `Start` and every worker call `VerifyApprovalIntegrity()` independently (approved state, approver != requester, version, digest) and fail with `APPROVAL_INTEGRITY_FAILED`.
+5. A request runs once: a second start is rejected by state and version; a tampered payload cannot run.
+6. Approval and start are location-bound; cross-location actors are denied.
+
+Tests: `FourEyesApprovalTests` (all kinds and operations), `PlacesProvisioningTests`. No privileged live worker may run until these rules are accepted and proven in the target environment.

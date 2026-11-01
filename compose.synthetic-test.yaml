@@ -1,5 +1,8 @@
 services:
   placehub-web:
+    # The synthetic profile never shares the live HTTPS port.
+    ports: !override
+      - "127.0.0.1:3243:8443"
     environment:
       DOTNET_ENVIRONMENT: SyntheticTest
       ASPNETCORE_ENVIRONMENT: SyntheticTest

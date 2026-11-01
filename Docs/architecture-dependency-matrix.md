@@ -14,3 +14,5 @@
 | Key Vault | Dedicated development worker-only vault | Exact name/RG/network/principal/cost and apply authorization |
 | Terraform delivery | ADR-016 exact saved plan | Policy expansion, plan validation; unknown/destructive blocked |
 | Production | Not approved | Data protection, hosting, persistence, operations and security sign-off |
+| Four-eyes approval (PROPOSED in ADR-017) | Implemented: requester != approver, version + payload digest, worker revalidation | Needs Project Owner acceptance; no live worker before it is proven |
+| Central requirements script | `scripts/Invoke-PlaceHub-Requirements.ps1` | Implements no tenant mutation; privileged gate tested |

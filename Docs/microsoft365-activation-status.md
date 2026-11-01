@@ -137,3 +137,36 @@ ADR-010 accepts SQLite for synthetic data only. The location mapping lives in co
 ### Final checklist
 
 User/OID verified; role verified; assignment PREPARED_NOT_APPLIED; building PENDING_OWNER_SELECTION; location PREPARED_NOT_APPLIED; certificate NOT_EXECUTED; registration BLOCKED_APPROVAL; plan NOT_TESTED (PR #1 unmerged; mergeable and clean, no required checks or reviews); apply NOT_EXECUTED; consent NOT_GRANTED; login, Places, `getSchedule` NOT_TESTED.
+
+## Implementation and activation preparation (2026-11-01, central script session)
+
+**Supersedes earlier "not granted" statements where the tenant has since changed.** Read-only inspection through `scripts/Invoke-PlaceHub-Requirements.ps1 Status` found:
+
+| Item | Actual state | Status |
+|---|---|---|
+| Frontend delegated declarations | `Place.Read.All`, `Calendars.ReadBasic` (policy-exact) | VERIFIED_IN_TENANT |
+| Delegated consent | One `AllPrincipals` grant: `Calendars.ReadBasic Place.Read.All` | VERIFIED_IN_TENANT (grant exists; not yet exercised by a login) |
+| Enterprise application assignments | Test user: `PlaceHub.SystemAdministrator` and one default-access assignment (no PlaceHub role) | VERIFIED_IN_TENANT |
+| Web certificate | Local PFX/CER exist; one public certificate registered; thumbprint equals the local public certificate; expires 2027-04-30 | VERIFIED_IN_TENANT |
+| Provisioning identity | No declarations, no grants, no credentials | VERIFIED_IN_TENANT |
+| Places inventory (Azure CLI identity) | Places read returns 401 for the CLI token; an administrator's delegated read returned an empty building collection; rooms, room lists, workspaces, desks and Exchange mailboxes still not inventoried | BLOCKED_PERMISSION |
+| Server-side location assignment | None (`PLACEHUB_LOCATION_PLACE_ID` unset); no building exists to assign | BLOCKED_APPROVAL |
+| Live login, `scp` check, Places read, `getSchedule` | Not performed | NOT_TESTED |
+
+### Implemented (offline-tested, privileged paths disabled by default)
+
+- **Four-eyes approval** (`AdministrationRequest`): requester != approver for every kind and operation, version + payload-digest binding, owner-only edit, independent `VerifyApprovalIntegrity()` in `Start` and every worker. The previous self-approval weakness is closed for all existing request kinds (ADR-017 amendment PROPOSED).
+- **Places write contract and worker** (`PlacesProvisioning.cs`): typed `PlacesWriteSpec` (type allowlist, parent-type rules, safe names and IDs, Create/Update only), Graph v1.0 client (typed body only, bounded retry for 429 only, ambiguous create never retried, trusted next links, safe ID paths), duplicate detection, parent validation, read-after-write by `placeId`, `PendingPropagation` and `RequiresReconciliation`, refusal while `Enabled=false`, workspace/desk creation refused without separate mailbox approval, `BootstrapBuilding` (development only, approved manifest, verified empty-building inventory, single-use atomic guard, independent approver). Manifest: `infrastructure/places/development-bootstrap-manifest.json`, status `PENDING_OWNER_DEFINITION`, no entries. The worker credential provider is `UnavailableWorkerTokenProvider`; the web process references none of these types (`WebBoundaryTests`).
+- **UI**: `/places-verwaltung` (hierarchy with canonical `placeId`, typed request form, request status incl. pending approval, pending propagation, reconciliation, failed; no synthetic fallback) and Places details plus a clear self-approval message on the approvals page. Not implemented: dedicated per-type pages beyond this combined view, import UI, and execution status from the live worker (worker not activated).
+- **Central script** and tests, synthetic Compose profile on 3243 (previously it would have claimed the live port).
+
+### Verification (VERIFIED_LOCALLY)
+
+130 .NET tests; all `tests/Test-*.ps1` including `Test-Requirements.ps1`; `terraform fmt` and `validate`; Compose static checks. Live container: health 200, unauthenticated request redirects to the tenant's authorize endpoint with code flow, PKCE S256, `form_post`, scopes `Place.Read.All Calendars.ReadBasic`, redirect `https://localhost:3242/signin-oidc`, state and nonce. Worker: disabled, only the data volume, no published port, no Docker socket. Synthetic profile reported `OfflineMock` on 3243 beside the live container.
+
+### Remaining gates
+
+1. A Places building must exist and the Project Owner must approve its `placeId` for the test user (`PLACEHUB_USER_OBJECT_ID`, `PLACEHUB_LOCATION_PLACE_ID` in the git-ignored `.env`); then perform and record the interactive live-read test.
+2. A resource mailbox for `getSchedule`.
+3. Acceptance of ADR-004/005/015/017 amendments; the PR with them is separate.
+4. Everything for Places writes: worker identity and certificate, Terraform policy amendment and apply for `Place.ReadWrite.All`, consent, Exchange RBAC (assignability unproven), Key Vault, mailbox-create decision, bootstrap manifest.

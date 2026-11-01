@@ -1,0 +1,6 @@
+{
+  "environment": "development",
+  "status": "PENDING_OWNER_DEFINITION",
+  "description": "Reviewed definition of the first Microsoft Places building for the development tenant. The Project Owner must supply exact values and set status to APPROVED_BY_PROJECT_OWNER; no names, addresses or locations are invented here.",
+  "entries": []
+}

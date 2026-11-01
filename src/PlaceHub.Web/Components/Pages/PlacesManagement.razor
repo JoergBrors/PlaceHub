@@ -1,0 +1,68 @@
+@page "/places-verwaltung"
+@inject IPlacesReader PlacesReader
+@inject AdministrationService Service
+@inject CurrentActorContext ActorContext
+@inject Microsoft365Options Microsoft365Options
+@rendermode InteractiveServer
+<PageTitle>Places-Verwaltung · PlaceHub</PageTitle>
+<div class="page-heading"><div class="page-title"><span class="page-icon" aria-hidden="true">▥</span><div><h1>Places-Verwaltung</h1><p>Gebäude, Etagen, Bereiche, Workspaces und Desks als typisierte Aufträge. Microsoft 365 bleibt die Quelle der Wahrheit.</p></div></div><StatusBadge Text="Schreibzugriff gesperrt" /></div>
+<div class="notice" role="status"><strong>Anträge schreiben nicht direkt.</strong>Jeder Auftrag wartet auf die Freigabe durch einen anderen System Administrator (Vier-Augen-Prinzip) und wird ausschließlich vom isolierten Worker ausgeführt. Dieser Worker ist nicht aktiviert; es erfolgt keine Änderung in Microsoft 365.</div>
+@if(error is not null){<div class="notice" role="alert"><strong>Microsoft 365 nicht verfügbar</strong>@error. Es werden keine synthetischen Daten angezeigt.</div>}
+else if(loading){<div class="notice" role="status"><strong>Microsoft Places wird gelesen</strong>Die Hierarchie wird über Microsoft Graph geladen.</div>}
+else{
+ <div class="notice" role="status"><strong>Datenquelle: @source</strong>Abruf: @readAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss"). Angezeigt wird die kanonische <code>placeId</code>.</div>
+ @if(!places.Any(x=>x.Type==PlaceType.Building)){<div class="empty"><h2>Keine Gebäude sichtbar</h2><p>Für Ihre Standortzuweisung wurden keine Gebäude gefunden. Das ist kein Nachweis, dass im Tenant keine Places-Objekte existieren. Das erste Gebäude erfordert den separaten Ablauf „BootstrapBuilding“ (nur Development, freigegebenes Manifest, unabhängige Freigabe).</p></div>}
+ else{
+ <div class="table-wrap"><table><thead><tr><th>Typ</th><th>Name</th><th>placeId</th><th>Übergeordnet</th><th>Quellzeitstempel</th></tr></thead><tbody>
+ @foreach(var item in Ordered){<tr><td>@item.Type</td><td><b>@item.DisplayName</b></td><td><code>@Canonical(item)</code></td><td><small>@ParentName(item)</small></td><td><small>@(item.SourceUpdatedAt?.ToString("dd.MM.yyyy HH:mm") ?? "nicht angegeben")</small></td></tr>}
+ </tbody></table></div>
+ <section class="surface"><h2>Auftrag erstellen</h2>
+  <EditForm Model="form" OnValidSubmit="SubmitAsync"><div class="form-grid">
+   <label>Operation<select @bind="form.Operation"><option value="@OperationKind.Create">Anlegen</option><option value="@OperationKind.Update">Umbenennen / Tags</option></select></label>
+   <label>Typ<select @bind="form.Kind"><option value="@PlaceType.Floor">Etage</option><option value="@PlaceType.Section">Bereich</option><option value="@PlaceType.Workspace">Workspace / Schreibtischgruppe</option><option value="@PlaceType.Desk">Desk</option><option value="@PlaceType.Building">Gebäude (nur Update)</option></select></label>
+   @if(form.Operation==OperationKind.Create){<label>Übergeordnetes Objekt (@(RequiredParentLabel))<select @bind="form.ParentPlaceId"><option value="">Bitte wählen</option>@foreach(var parent in Parents){<option value="@Canonical(parent)">@parent.DisplayName</option>}</select></label>}
+   else{<label>Zielobjekt<select @bind="form.TargetPlaceId"><option value="">Bitte wählen</option>@foreach(var target in places.Where(x=>x.Type==form.Kind)){<option value="@Canonical(target)">@target.DisplayName</option>}</select></label>}
+   <label>Anzeigename<input @bind="form.DisplayName" maxlength="128" /></label>
+  </div>
+  @if(form.Operation==OperationKind.Create && form.Kind is PlaceType.Workspace or PlaceType.Desk){<p class="notice" role="status">Beim Anlegen entsteht in Microsoft 365 implizit ein Postfach. Diese Freigabe ist nicht erteilt; der Worker lehnt den Auftrag deshalb ab.</p>}
+  <button type="submit">Auftrag einreichen</button></EditForm>
+  @if(message is not null){<p class="notice" role="status">@message</p>}
+ </section>
+ }
+}
+<section class="surface"><h2>Meine Places-Aufträge</h2>
+ <div class="table-wrap"><table><thead><tr><th>Objekt</th><th>Operation</th><th>Status</th><th>Sichere Diagnose</th></tr></thead><tbody>
+ @foreach(var request in PlacesRequests){<tr><td><b>@request.Specification.Name</b><small>@request.Specification.Places?.Kind · @request.CorrelationId[..8]</small></td><td>@request.Specification.Operation</td><td><StatusBadge Text="@Label(request.State)" /></td><td><code>@request.OutcomeCode</code></td></tr>}
+ </tbody></table></div>
+ @if(!PlacesRequests.Any()){<div class="empty"><h2>Noch keine Places-Aufträge</h2></div>}
+</section>
+@code {
+ private bool loading=true; private string? error, message, source="Nicht verifiziert"; private DateTimeOffset readAt; private IReadOnlyList<PlaceRecord> places=[];
+ private readonly FormModel form=new();
+ private IEnumerable<AdministrationRequest> PlacesRequests=>ActorContext.DenialCode is null?Service.List(ActorContext.Current).Where(x=>x.Specification.ResourceKind==ResourceKind.PlacesHierarchy):[];
+ private IEnumerable<PlaceRecord> Ordered=>places.OrderBy(x=>x.Type).ThenBy(x=>x.DisplayName,StringComparer.OrdinalIgnoreCase);
+ private PlaceType? RequiredParent=>PlacesWriteSpec.RequiredParent(form.Kind);
+ private string RequiredParentLabel=>RequiredParent?.ToString()??"kein übergeordnetes Objekt";
+ private IEnumerable<PlaceRecord> Parents=>RequiredParent is { } type?places.Where(x=>x.Type==type):[];
+ private static string Canonical(PlaceRecord p)=>p.StablePlaceId??p.Id;
+ private string ParentName(PlaceRecord p)=>p.ParentId is null?"–":places.FirstOrDefault(x=>x.Id==p.ParentId||x.StablePlaceId==p.ParentId)?.DisplayName??"unbekannt";
+ protected override async Task OnInitializedAsync(){try{var snapshot=await PlacesReader.ReadHierarchyAsync(ActorContext.CreateReadContext(Microsoft365Options),CancellationToken.None);places=snapshot.Places;source=snapshot.DataSource;readAt=snapshot.ReadAt;}catch(IntegrationException ex){error=ex.Code;}finally{loading=false;}}
+ private string? LocationOf(PlaceRecord? place){while(place is not null){if(place.Type==PlaceType.Building)return Canonical(place);var parent=place.ParentId;place=parent is null?null:places.FirstOrDefault(x=>x.Id==parent||x.StablePlaceId==parent);}return null;}
+ private Task SubmitAsync()
+ {
+  try
+  {
+   var anchor=form.Operation==OperationKind.Create?(RequiredParent is null?null:places.FirstOrDefault(x=>Canonical(x)==form.ParentPlaceId)):places.FirstOrDefault(x=>Canonical(x)==form.TargetPlaceId);
+   var location=LocationOf(anchor)??throw new ValidationException("PLACE_LOCATION_UNRESOLVED");
+   var spec=form.Operation==OperationKind.Create?new PlacesWriteSpec(form.Kind,form.DisplayName.Trim(),form.ParentPlaceId):new PlacesWriteSpec(form.Kind,form.DisplayName.Trim(),null,TargetPlaceId:form.TargetPlaceId);
+   var request=Service.Create(ResourceSpecification.ForPlaces(form.Operation,location,spec),ActorContext.Current,Guid.NewGuid().ToString("N"));
+   request.Submit(ActorContext.Current,request.Version);
+   message=$"Auftrag {request.Id.ToString()[..8]} wartet auf die Freigabe durch einen anderen System Administrator. In Microsoft 365 wurde nichts geändert.";
+  }
+  catch(WorkflowException ex){message=$"Nicht möglich: {ex.Code}";}
+  catch(IntegrationException ex){message=$"Nicht möglich: {ex.Code}";}
+  return Task.CompletedTask;
+ }
+ private static string Label(RequestState s)=>s switch{RequestState.Draft=>"Entwurf",RequestState.Submitted or RequestState.AwaitingApproval=>"Freigabe ausstehend",RequestState.Approved=>"Freigegeben, nicht ausgeführt",RequestState.Rejected=>"Abgelehnt",RequestState.Running=>"In Bearbeitung",RequestState.PendingPropagation=>"Wartet auf Verbreitung",RequestState.Succeeded=>"Erfolgreich provisioniert",RequestState.PartiallyConfigured=>"Teilweise konfiguriert",RequestState.RequiresReconciliation=>"Abgleich erforderlich",RequestState.Failed=>"Fehler",_=>"Unbekannt"};
+ private sealed class FormModel{public OperationKind Operation{get;set;}=OperationKind.Create;public PlaceType Kind{get;set;}=PlaceType.Floor;public string ParentPlaceId{get;set;}="";public string TargetPlaceId{get;set;}="";public string DisplayName{get;set;}="";}
+}
